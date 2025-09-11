@@ -6,7 +6,6 @@ to Copytrack cases.
 """
 
 import time
-import pyautogui
 from datetime import datetime
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -141,8 +140,9 @@ def capture_image_screenshot(driver, matched_image, case_text_clean):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M")
             screenshot_path = fr"{case_text_clean}_{timestamp}.png"
 
-            pyautogui.screenshot(screenshot_path)
-            pyautogui.sleep(1)
+            # Use Selenium to take screenshot instead of pyautogui
+            driver.save_screenshot(screenshot_path)
+            time.sleep(1)
 
             print(f"[INFO] 📸 Screenshot taken and saved to: {screenshot_path}")
             return screenshot_path
@@ -203,13 +203,25 @@ def upload_screenshot_evidence_usual(driver, screenshot_path, page_hrefs, link_i
     time.sleep(0.5)
     click_button(driver, "manual-screenshot-page")
     time.sleep(0.5)
-    click_button(driver, "file upload")
-
-    time.sleep(1.2)
-    pyautogui.typewrite(screenshot_path)
-    time.sleep(2)
-    pyautogui.press('enter')
-    time.sleep(1)
+    
+    # Find and use the file input element directly instead of pyautogui
+    try:
+        file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
+        file_input.send_keys(screenshot_path)
+        time.sleep(2)
+    except Exception as e:
+        print(f"[ERROR] Could not find file input element: {e}")
+        # Fallback: try clicking the upload button and hope there's a file input
+        click_button(driver, "file upload")
+        time.sleep(1.2)
+        # Look for file input again
+        try:
+            file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
+            file_input.send_keys(screenshot_path)
+            time.sleep(2)
+        except Exception as e2:
+            print(f"[ERROR] Could not upload file even with fallback: {e2}")
+            return False
 
     click_button(driver, "submit evidence")
     time.sleep(1.2)
@@ -251,15 +263,27 @@ def upload_screenshot_evidence_new_claims(driver, screenshot_path, page_hrefs, l
     time.sleep(0.5)
 
     try:
-        # (i) Wait for and click "Add files" button
-        driver.find_element(By.CSS_SELECTOR,'#claim_documents_form > button.btn.btn-primary.pull-right.btn-xs.fileinput-button.dz-clickable > span').click()
-        time.sleep(1.2)
+        # (i) Look for file input element first, then try clicking "Add files" button if needed
+        file_input = None
+        try:
+            file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
+        except:
+            # If no file input found, click "Add files" button and try again
+            driver.find_element(By.CSS_SELECTOR,'#claim_documents_form > button.btn.btn-primary.pull-right.btn-xs.fileinput-button.dz-clickable > span').click()
+            time.sleep(1.2)
+            try:
+                file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
+            except Exception as e:
+                print(f"[ERROR] Could not find file input after clicking Add files: {e}")
+                return False
 
-        # (ii) Enter screenshot path
-        pyautogui.typewrite(screenshot_path)
-        time.sleep(1.5)
-        pyautogui.press('enter')
-        time.sleep(2)
+        # (ii) Upload file using Selenium instead of pyautogui
+        if file_input:
+            file_input.send_keys(screenshot_path)
+            time.sleep(2)
+        else:
+            print("[ERROR] No file input element found")
+            return False
 
         # (iii) Wait for and click "Start upload" button
         start_upload_button = WebDriverWait(driver, 10).until(

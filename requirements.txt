@@ -15,5 +15,5 @@ requests==2.31.0
 # Task scheduling
 schedule==1.2.0
 
-# GUI automation
-pyautogui==0.9.54
+# GUI automation - REMOVED pyautogui to avoid X11 issues
+# pyautogui==0.9.54
