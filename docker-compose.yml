@@ -1,0 +1,20 @@
+services:
+  creditcheck-scheduler:
+    build: .
+    container_name: creditcheck-scheduler
+    restart: unless-stopped
+    volumes:
+      # Mount output directory to persist data (includes even/odd specific files)
+      - ./output:/app/output
+      - ./logs:/app/logs
+      # Mount overall_checked_claims.csv if it exists (shared between even/odd)
+      - ./overall_checked_claims.csv:/app/overall_checked_claims.csv
+    environment:
+      - DISPLAY=:99
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "scheduler.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

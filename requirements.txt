@@ -1,0 +1,22 @@
+# Core web automation
+playwright==1.40.0
+selenium==4.15.2
+webdriver-manager==4.0.1
+
+# Image processing and OCR
+pillow==10.1.0
+opencv-python==4.8.1.78
+numpy==1.24.3
+scipy==1.11.4
+
+# HTTP requests
+requests==2.31.0
+
+# Task scheduling
+schedule==1.2.0
+
+# GUI automation
+pyautogui==0.9.54
+
+# String matching
+ahocorasick==2.0.0
