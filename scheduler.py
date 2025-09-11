@@ -140,9 +140,9 @@ def clean_csv_files(claim_type):
         else:
             log_message(f"ℹ️ {csv_file} does not exist (already clean)")
 
-def run_claims_scraper(claim_type):
-    """Run the claims scraper for specific claim type"""
-    log_message(f"🔄 Starting scheduled claims scraping ({claim_type} IDs)...")
+def run_claims_scraper(claim_type, retry_count=0, max_retries=2):
+    """Run the claims scraper for specific claim type with retry logic"""
+    log_message(f"🔄 Starting claims scraping ({claim_type} IDs) - Attempt {retry_count + 1}/{max_retries + 1}")
     
     # Clean CSV files before processing
     log_message(f"🧹 Cleaning CSV files for fresh start ({claim_type})...")
@@ -154,17 +154,86 @@ def run_claims_scraper(claim_type):
         
         if result.returncode == 0:
             log_message(f"✅ Claims scraping completed successfully ({claim_type} IDs)")
+            return True
         else:
             log_message(f"❌ Claims scraping failed: {result.stderr}")
+            return False
             
     except subprocess.TimeoutExpired:
         log_message("❌ Claims scraping timed out (5 minute limit)")
+        return False
     except Exception as e:
         log_message(f"❌ Error running claims scraper: {e}")
+        return False
+
+def run_claims_scraper_with_retry(claim_type):
+    """Run claims scraper with retry logic"""
+    max_retries = 2
+    
+    for attempt in range(max_retries + 1):
+        success = run_claims_scraper(claim_type, retry_count=attempt, max_retries=max_retries)
+        
+        if success:
+            # Check if we actually got data
+            if check_claims_scraping_success(claim_type):
+                log_message(f"✅ Claims scraping successful with data ({claim_type} IDs)")
+                return True
+            else:
+                log_message(f"⚠️ Claims scraping completed but no data found ({claim_type} IDs)")
+                if attempt < max_retries:
+                    log_message(f"🔄 Retrying in 2 minutes... ({attempt + 1}/{max_retries})")
+                    time.sleep(120)  # Wait 2 minutes before retry
+                else:
+                    log_message(f"❌ All retry attempts exhausted for {claim_type} IDs")
+                    return False
+        else:
+            if attempt < max_retries:
+                log_message(f"🔄 Claims scraping failed, retrying in 2 minutes... ({attempt + 1}/{max_retries})")
+                time.sleep(120)  # Wait 2 minutes before retry
+            else:
+                log_message(f"❌ All retry attempts exhausted for {claim_type} IDs")
+                return False
+    
+    return False
+
+def check_claims_scraping_success(claim_type):
+    """Check if claims scraping was successful by verifying the CSV file exists and has data"""
+    cases_csv = f"output/cases_{claim_type}.csv"
+    
+    if not os.path.exists(cases_csv):
+        log_message(f"⚠️ No cases CSV found for {claim_type}, skipping credit checking")
+        return False
+    
+    try:
+        # Check if file has data (more than just header)
+        with open(cases_csv, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            if len(lines) <= 1:  # Only header or empty
+                log_message(f"⚠️ Cases CSV for {claim_type} is empty, skipping credit checking")
+                return False
+        
+        # Check if file is recent (created within last 2 hours)
+        file_age = time.time() - os.path.getmtime(cases_csv)
+        if file_age > 7200:  # 2 hours = 7200 seconds
+            log_message(f"⚠️ Cases CSV for {claim_type} is too old ({file_age/3600:.1f} hours), skipping credit checking")
+            return False
+        
+        log_message(f"✅ Found {len(lines)-1} cases in {cases_csv} for {claim_type} (created {file_age/60:.1f} minutes ago)")
+        return True
+        
+    except Exception as e:
+        log_message(f"❌ Error checking cases CSV for {claim_type}: {e}")
+        return False
 
 def run_credit_checker(claim_type):
     """Run the credit checker for specific claim type"""
     log_message(f"🎯 Starting scheduled credit checking ({claim_type} IDs)...")
+    
+    # First check if claims scraping was successful
+    if not check_claims_scraping_success(claim_type):
+        log_message(f"⏭️ Skipping credit checking for {claim_type} due to failed/incomplete claims scraping")
+        return
+    
     try:
         result = subprocess.run([sys.executable, "control.py", claim_type], 
                               capture_output=True, text=True, timeout=600)  # 10 minute timeout
@@ -213,8 +282,8 @@ def main():
     os.makedirs("output", exist_ok=True)
     
     # Schedule the jobs - run both even and odd processes separately
-    schedule.every().hour.at(":30").do(run_claims_scraper, "even")
-    schedule.every().hour.at(":35").do(run_claims_scraper, "odd")
+    schedule.every().hour.at(":30").do(run_claims_scraper_with_retry, "even")
+    schedule.every().hour.at(":35").do(run_claims_scraper_with_retry, "odd")
     schedule.every().hour.at(":00").do(run_credit_checker, "even")
     schedule.every().hour.at(":05").do(run_credit_checker, "odd")
     
