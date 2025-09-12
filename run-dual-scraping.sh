@@ -24,7 +24,7 @@ case "${1:-start}" in
         
         # Start even container
         echo "🏃 Starting even container..."
-        docker run -d \
+        docker run -d --restart=unless-stopped \
           --name $CONTAINER_EVEN \
           -v "$(pwd)/output:/app/output" \
           -v "$(pwd)/logs:/app/logs" \
@@ -38,7 +38,7 @@ case "${1:-start}" in
         
         # Start odd container
         echo "🏃 Starting odd container..."
-        docker run -d \
+        docker run -d --restart=unless-stopped \
           --name $CONTAINER_ODD \
           -v "$(pwd)/output:/app/output" \
           -v "$(pwd)/logs:/app/logs" \
