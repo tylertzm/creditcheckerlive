@@ -2,6 +2,7 @@ import os
 import csv
 import sys
 import datetime
+import time
 from playwright.sync_api import sync_playwright
 
 # Parse command line arguments for even/odd filtering
@@ -25,6 +26,10 @@ OUTPUT_CSV = f"cases_{CLAIM_TYPE}.csv"  # Output: new cases to process (even/odd
 MAX_HITS_PER_CLAIM = 2  # Skip claims with 3 or more hits (process only 0, 1, 2 hits)
 MAX_CASES_TO_SCRAPE = 300  # Maximum number of cases to process
 MAX_PAGES_TO_CHECK = 255 # Maximum number of pages to check for claims
+TIMEOUT_MINUTES = 10  # Maximum time to run scraping (10 minutes)
+
+# Track start time for timeout
+SCRAPING_START_TIME = time.time()
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 input_path = os.path.join(OUTPUT_DIR, INPUT_CSV)
@@ -115,7 +120,14 @@ with sync_playwright() as p:
     current_page = 1
     
     while len(case_urls) < MAX_CASES_TO_SCRAPE:  # Continue until we have enough URLs or no more pages
-        print(f"[INFO] Processing page {current_page}")
+        # Check timeout first
+        elapsed_time = time.time() - SCRAPING_START_TIME
+        if elapsed_time > (TIMEOUT_MINUTES * 60):
+            print(f"[TIMEOUT] Scraping stopped after {elapsed_time/60:.1f} minutes (limit: {TIMEOUT_MINUTES} minutes)")
+            print(f"[TIMEOUT] Processed {len(case_urls)} cases before timeout")
+            break
+            
+        print(f"[INFO] Processing page {current_page} (elapsed: {elapsed_time/60:.1f} min)")
         page.goto(f'https://app.copytrack.com/admin/claim/list/review?customerFeedbackRequired=0&itemsPerPage=100&s=c.createdAt&d=desc&page={current_page}')
         page.wait_for_selector('a[title="View images"]', timeout=60000)
 
@@ -191,13 +203,19 @@ with sync_playwright() as p:
         
         # Now process each qualifying case
         for claim_url in qualifying_cases:
+            # Check timeout before processing each case
+            elapsed_time = time.time() - SCRAPING_START_TIME
+            if elapsed_time > (TIMEOUT_MINUTES * 60):
+                print(f"[TIMEOUT] Stopping case processing after {elapsed_time/60:.1f} minutes")
+                break
+                
             # Check if we've reached the case limit
             if len(case_urls) >= MAX_CASES_TO_SCRAPE:
                 print(f"[INFO] Reached maximum cases limit ({MAX_CASES_TO_SCRAPE}). Stopping.")
                 break
                 
             case_id = extract_case_id_from_url(claim_url)
-            print(f"[INFO] Processing case {case_id} (case {len(case_urls) + 1}/{MAX_CASES_TO_SCRAPE})")
+            print(f"[INFO] Processing case {case_id} (case {len(case_urls) + 1}/{MAX_CASES_TO_SCRAPE}) - {elapsed_time/60:.1f}min elapsed")
             
             # Process this case and add to results
             case_urls.append(claim_url)

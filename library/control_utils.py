@@ -117,8 +117,14 @@ def process_hits(input_csv, output_csv, check_image_credits_func):
                 target_image_url = normalize_image_url(row.get("image_url"))
                 page_url = row.get("page_url")
 
+                # Debug logging for missing data
+                print(f"[DEBUG] Row data: case_id={row.get('case_id')}, hit_number={row.get('hit_number')}")
+                print(f"[DEBUG] image_url='{row.get('image_url')}' -> normalized='{target_image_url}'")
+                print(f"[DEBUG] page_url='{row.get('page_url')}'")
+
                 # Handle missing data
                 if not target_image_url or not page_url:
+                    print(f"[ERROR] Missing data - target_image_url: {bool(target_image_url)}, page_url: {bool(page_url)}")
                     row.update({
                         "image_found": False,
                         "keyword_found": False,
