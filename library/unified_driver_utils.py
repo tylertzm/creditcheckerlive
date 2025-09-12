@@ -59,6 +59,10 @@ def get_system_info():
 def find_chrome_binary():
     """Find the Chrome binary for the current environment"""
     chrome_paths = [
+        # macOS paths
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        # Linux/Docker paths
         '/usr/bin/google-chrome',
         '/usr/bin/google-chrome-stable',
         '/usr/bin/chromium',
@@ -96,6 +100,10 @@ def find_chromedriver():
             '/usr/local/bin/chromedriver',     # Homebrew on macOS
             '/usr/bin/chromedriver',           # Linux package manager
             '/opt/homebrew/bin/chromedriver',  # Apple Silicon Homebrew
+            # Additional macOS paths
+            '/Applications/Google Chrome.app/Contents/MacOS/chromedriver',
+            '/usr/local/share/chromedriver',
+            '/opt/homebrew/share/chromedriver',
         ]
     
     working_drivers = []
@@ -114,6 +122,29 @@ def find_chromedriver():
             except Exception as e:
                 print(f"[DEBUG] ChromeDriver test failed for {driver_path}: {e}")
                 continue
+    
+    # If no system ChromeDriver found, try to find it in common locations
+    if not working_drivers:
+        print("[DEBUG] No system ChromeDriver found, searching common locations...")
+        try:
+            # Try to find ChromeDriver using which command
+            result = subprocess.run(['which', 'chromedriver'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                chromedriver_path = result.stdout.strip()
+                if os.path.exists(chromedriver_path) and os.access(chromedriver_path, os.X_OK):
+                    try:
+                        version_result = subprocess.run([chromedriver_path, '--version'], 
+                                                      capture_output=True, text=True, timeout=10)
+                        if version_result.returncode == 0:
+                            working_drivers.append({
+                                'path': chromedriver_path,
+                                'version': version_result.stdout.strip()
+                            })
+                    except:
+                        pass
+        except:
+            pass
     
     return working_drivers
 
@@ -205,8 +236,24 @@ def setup_driver(headless=True, extra_chrome_args=None):
             print("[INFO] No system ChromeDriver found, trying webdriver-manager...")
             try:
                 from webdriver_manager.chrome import ChromeDriverManager
+                print("[INFO] Installing ChromeDriver via webdriver-manager...")
                 driver_path = ChromeDriverManager().install()
-                working_drivers = [{'path': driver_path, 'version': 'webdriver-manager'}]
+                print(f"[INFO] ChromeDriver installed at: {driver_path}")
+                
+                # Verify the installed driver works
+                try:
+                    result = subprocess.run([driver_path, '--version'], 
+                                          capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        working_drivers = [{'path': driver_path, 'version': result.stdout.strip()}]
+                        print(f"[INFO] ✅ ChromeDriver verified: {result.stdout.strip()}")
+                    else:
+                        raise Exception("Installed ChromeDriver failed version check")
+                except Exception as verify_error:
+                    raise Exception(f"ChromeDriver verification failed: {verify_error}")
+                    
+            except ImportError:
+                raise Exception("webdriver-manager not installed. Install with: pip install webdriver-manager")
             except Exception as e:
                 raise Exception(f"No ChromeDriver found and webdriver-manager failed: {e}")
         else:

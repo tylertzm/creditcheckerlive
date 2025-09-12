@@ -6,6 +6,7 @@ to Copytrack cases.
 """
 
 import time
+import pyautogui
 from datetime import datetime
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -44,15 +45,16 @@ def click_button(driver, action, element=None):
         element: Optional WebElement to click directly
     """
     if element is not None:
-        element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element))
-        safe_click(driver, element, "provided element")
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element)).click()
+        print("[INFO] ✅ Clicked provided element.")
         return
 
     if action == "upload evidences":
         upload_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, '//a[normalize-space(text())="upload evidences"]'))
         )
-        safe_click(driver, upload_button, "upload evidences button")
+        upload_button.click()
+        print("[INFO] ✅ Clicked 'upload evidences' button.")
 
     elif action == "manual-screenshot-page":
         dropdown_element = WebDriverWait(driver, 10).until(
@@ -67,10 +69,11 @@ def click_button(driver, action, element=None):
             EC.presence_of_element_located((By.XPATH, '//i[contains(@class, "glyphicon-open")]'))
         )
         parent_element = icon_element.find_element(By.XPATH, '..')
-        parent_element = WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable(parent_element)
         )
-        safe_click(driver, parent_element, "file upload button")
+        parent_element.click()
+        print("[INFO] ✅ Clicked the 'file upload' button.")
 
     elif action == "submit evidence":
         submit_button = WebDriverWait(driver, 10).until(
@@ -79,7 +82,8 @@ def click_button(driver, action, element=None):
                 '//span[normalize-space(text())="Submit"]/parent::*'
             ))
         )
-        safe_click(driver, submit_button, "Submit button")
+        submit_button.click()
+        print("[INFO] ✅ Clicked the 'Submit' button.")
 
     else:
         raise ValueError(f"[ERROR] ❌ Unknown action '{action}'.")
@@ -137,9 +141,8 @@ def capture_image_screenshot(driver, matched_image, case_text_clean):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M")
             screenshot_path = fr"{case_text_clean}_{timestamp}.png"
 
-            # Use Selenium to take screenshot instead of pyautogui
-            driver.save_screenshot(screenshot_path)
-            time.sleep(1)
+            pyautogui.screenshot(screenshot_path)
+            pyautogui.sleep(1)
 
             print(f"[INFO] 📸 Screenshot taken and saved to: {screenshot_path}")
             return screenshot_path
@@ -200,25 +203,13 @@ def upload_screenshot_evidence_usual(driver, screenshot_path, page_hrefs, link_i
     time.sleep(0.5)
     click_button(driver, "manual-screenshot-page")
     time.sleep(0.5)
-    
-    # Find and use the file input element directly instead of pyautogui
-    try:
-        file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
-        file_input.send_keys(screenshot_path)
-        time.sleep(2)
-    except Exception as e:
-        print(f"[ERROR] Could not find file input element: {e}")
-        # Fallback: try clicking the upload button and hope there's a file input
-        click_button(driver, "file upload")
-        time.sleep(1.2)
-        # Look for file input again
-        try:
-            file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
-            file_input.send_keys(screenshot_path)
-            time.sleep(2)
-        except Exception as e2:
-            print(f"[ERROR] Could not upload file even with fallback: {e2}")
-            return False
+    click_button(driver, "file upload")
+
+    time.sleep(1.2)
+    pyautogui.typewrite(screenshot_path)
+    time.sleep(2)
+    pyautogui.press('enter')
+    time.sleep(1)
 
     click_button(driver, "submit evidence")
     time.sleep(1.2)
@@ -260,35 +251,50 @@ def upload_screenshot_evidence_new_claims(driver, screenshot_path, page_hrefs, l
     time.sleep(0.5)
 
     try:
-        # (i) Look for file input element first, then try clicking "Add files" button if needed
-        file_input = None
+        # (i) Wait for and click "Add files" button
+        driver.find_element(By.CSS_SELECTOR,'#claim_documents_form > button.btn.btn-primary.pull-right.btn-xs.fileinput-button.dz-clickable > span').click()
+        time.sleep(1.2)
+
+        # (ii) Enter screenshot path
+        pyautogui.typewrite(screenshot_path)
+        time.sleep(1.5)
+        pyautogui.press('enter')
+        time.sleep(2)  # Wait for file to be selected
+
+        # (iii) Wait for and click "Start upload" button (appears after file selection)
+        print("[INFO] Looking for 'Start upload' button...")
         try:
-            file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
-        except:
-            # If no file input found, click "Add files" button and try again
-            add_files_button = driver.find_element(By.CSS_SELECTOR,'#claim_documents_form > button.btn.btn-primary.pull-right.btn-xs.fileinput-button.dz-clickable > span')
-            safe_click(driver, add_files_button, "Add files button")
-            time.sleep(1.2)
-            try:
-                file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
-            except Exception as e:
-                print(f"[ERROR] Could not find file input after clicking Add files: {e}")
-                return False
-
-        # (ii) Upload file using Selenium instead of pyautogui
-        if file_input:
-            file_input.send_keys(screenshot_path)
-            time.sleep(2)
-        else:
-            print("[ERROR] No file input element found")
-            return False
-
-        # (iii) Wait for and click "Start upload" button
-        start_upload_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//button[@data-action='start-document-upload']//span[text()='Start upload']/.."))
-        )
-        safe_click(driver, start_upload_button, "'Start upload' button")
-        time.sleep(3)
+            # Try multiple possible selectors for the start upload button
+            start_upload_selectors = [
+                "//button[@data-action='start-document-upload']//span[text()='Start upload']/..",
+                "//button[contains(@class, 'start')]//span[text()='Start upload']/..",
+                "//button[contains(text(), 'Start upload')]",
+                "//span[text()='Start upload']/parent::button",
+                "//*[contains(text(), 'Start upload')]"
+            ]
+            
+            start_upload_button = None
+            for selector in start_upload_selectors:
+                try:
+                    start_upload_button = WebDriverWait(driver, 3).until(
+                        EC.element_to_be_clickable((By.XPATH, selector))
+                    )
+                    print(f"[INFO] Found 'Start upload' button with selector: {selector}")
+                    break
+                except:
+                    continue
+            
+            if start_upload_button:
+                safe_click(driver, start_upload_button, "'Start upload' button")
+                time.sleep(3)
+            else:
+                print("[WARN] Could not find 'Start upload' button, file may upload automatically")
+                time.sleep(3)
+                
+        except Exception as upload_btn_error:
+            print(f"[WARN] Start upload button error: {upload_btn_error}")
+            print("[INFO] Proceeding anyway, file may upload automatically")
+            time.sleep(3)
 
         print("[INFO] ✅ Screenshot uploaded successfully.")
         return True
