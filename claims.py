@@ -125,6 +125,14 @@ with sync_playwright() as p:
         
         # First, collect all qualifying case URLs and hit counts from the current page
         qualifying_cases = []
+        page_stats = {
+            'total_buttons': len(view_buttons),
+            'high_hits': 0,
+            'already_processed': 0,
+            'wrong_type': 0,
+            'qualifying': 0
+        }
+        
         for btn in view_buttons:
             try:
                 claim_row = btn.evaluate_handle('el => el.closest("tr")')
@@ -143,6 +151,7 @@ with sync_playwright() as p:
                 # Skip claims with too many hits
                 if hit_count > MAX_HITS_PER_CLAIM:
                     print(f"[DEBUG] Skipping claim with {hit_count} hits (max allowed: {MAX_HITS_PER_CLAIM})")
+                    page_stats['high_hits'] += 1
                     continue
 
                 # Extract the claim URL
@@ -159,18 +168,26 @@ with sync_playwright() as p:
                 # Skip if already processed
                 if case_id in processed_cases:
                     print(f"[SKIP] Case {case_id} already processed")
+                    page_stats['already_processed'] += 1
                     continue
                 
                 # Skip if case ID doesn't match the required even/odd filter
                 if not should_process_case_id(case_id):
                     print(f"[SKIP] Case {case_id} doesn't match {CLAIM_TYPE} filter")
+                    page_stats['wrong_type'] += 1
                     continue
                 
                 qualifying_cases.append(claim_url)
+                page_stats['qualifying'] += 1
                 
             except Exception as e:
                 print(f"[ERROR] Error processing claim row: {e}")
                 continue
+        
+        # Print page statistics
+        print(f"[PAGE {current_page} STATS] Total buttons: {page_stats['total_buttons']}, "
+              f"High hits: {page_stats['high_hits']}, Already processed: {page_stats['already_processed']}, "
+              f"Wrong type ({CLAIM_TYPE}): {page_stats['wrong_type']}, Qualifying: {page_stats['qualifying']}")
         
         # Now process each qualifying case
         for claim_url in qualifying_cases:
@@ -246,10 +263,13 @@ with sync_playwright() as p:
         
         print(f"[INFO] Processed page {current_page}, total cases so far: {len(case_urls)}")
         
-        # Check if there's a "Next" button to determine if there are more pages
-        next_button = page.query_selector('a[rel="next"]')
-        if not next_button:
-            print("[INFO] No 'Next' button found. Reached the last page.")
+        # Check if this page had any qualifying cases
+        if len(qualifying_cases) == 0:
+            print(f"[INFO] No qualifying cases found on page {current_page}. Checking next page...")
+        
+        # Check if this page had any view buttons at all (indicates end of data)
+        if len(view_buttons) == 0:
+            print(f"[INFO] No view buttons found on page {current_page}. Reached end of data.")
             break
         
         # Check if we've reached the maximum pages limit
