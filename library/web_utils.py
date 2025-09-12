@@ -84,35 +84,45 @@ def setup_driver():
     # Use system chromedriver (more reliable in Docker)
     try:
         # Try system chromedriver first (installed via package manager or Docker)
-        # Check multiple possible locations
+        # Check multiple possible locations in order of preference
         chromedriver_paths = [
-            "/usr/local/bin/chromedriver",  # Docker installed location
-            "/usr/bin/chromedriver",        # Package manager location
-            "/usr/bin/chromium-driver",     # Chromium driver location
+            "/usr/local/bin/chromedriver",  # Docker installed location (symlink)
+            "/usr/bin/chromedriver",        # Package manager location (primary)
+            "/usr/bin/chromium-driver",     # Chromium driver location (backup)
         ]
         
         driver = None
         for chromedriver_path in chromedriver_paths:
-            try:
-                service = Service(chromedriver_path)
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-                print(f"✅ Using chromedriver from: {chromedriver_path}")
-                break
-            except Exception as path_error:
-                print(f"Failed to use chromedriver from {chromedriver_path}: {path_error}")
-                continue
+            if os.path.exists(chromedriver_path):
+                try:
+                    print(f"🔍 Trying chromedriver at: {chromedriver_path}")
+                    service = Service(chromedriver_path)
+                    driver = webdriver.Chrome(service=service, options=chrome_options)
+                    print(f"✅ Successfully using chromedriver from: {chromedriver_path}")
+                    break
+                except Exception as path_error:
+                    print(f"❌ Failed to use chromedriver from {chromedriver_path}: {path_error}")
+                    continue
+            else:
+                print(f"⚠️ Chromedriver not found at: {chromedriver_path}")
         
         if driver is None:
+            print("❌ No working system chromedriver found")
+            print("Available chromedriver paths checked:")
+            for path in chromedriver_paths:
+                exists = "✅" if os.path.exists(path) else "❌"
+                print(f"  {exists} {path}")
             raise Exception("No system chromedriver found in standard locations")
             
     except Exception as e:
-        print(f"System chromedriver failed: {e}, trying webdriver-manager...")
-        # Fallback to webdriver-manager
-        try:
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-        except Exception as e2:
-            raise Exception(f"Failed to setup ChromeDriver: system error: {e}, webdriver-manager error: {e2}")
+        print(f"❌ System chromedriver setup failed: {e}")
+        print("🔧 To fix this in Docker, ensure ChromeDriver is properly installed:")
+        print("   apt-get install -y google-chrome-stable chromium-driver")
+        print("   ln -sf /usr/bin/chromedriver /usr/local/bin/chromedriver")
+        # Don't fallback to webdriver-manager in Docker as it causes architecture issues
+        if os.path.exists("/usr/bin/chromedriver") or os.path.exists("/usr/local/bin/chromedriver"):
+            print("💡 ChromeDriver files exist but failed to load. This might be a permissions or architecture issue.")
+        raise Exception(f"Failed to setup ChromeDriver: {e}")
     
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
