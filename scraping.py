@@ -2,6 +2,7 @@ import os
 import csv
 import sys
 import time
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -171,7 +172,7 @@ def login(driver):
     time.sleep(3)
     print("[INFO] Login completed, proceeding to claims...")
 
-def get_qualifying_cases(driver, target_count, filter_type=None):
+def get_qualifying_cases(driver, target_count, processed_claims, filter_type=None):
     """Get qualifying cases from the review list"""
     qualifying_cases = []
     current_page = 1
@@ -220,6 +221,17 @@ def get_qualifying_cases(driver, target_count, filter_type=None):
                         elif filter_type == "odd" and case_id_num % 2 == 0:
                             print(f"[SKIP] Skipping even case {case_id} (odd filter)")
                             continue
+                    
+                    # Check if this case has already been processed
+                    case_processed = False
+                    for processed_key in processed_claims:
+                        if processed_key.startswith(f"{case_id}_"):
+                            case_processed = True
+                            break
+                    
+                    if case_processed:
+                        print(f"[SKIP] Case {case_id} already processed, skipping...")
+                        continue
                     
                     print(f"[INFO] Found qualifying case: {case_id} with {hit_count} hits")
                     qualifying_cases.append(claim_url)
@@ -354,7 +366,8 @@ def process_case(driver, claim_url, case_id, processed_claims):
                         ', '.join(credit_results.get('credit_keywords', [])),
                         credit_results.get('highlight_url', ''),
                         credit_results.get('error', ''),
-                        credit_results.get('screenshot_path', '')
+                        credit_results.get('screenshot_path', ''),
+                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     ])
             else:
                 case_rows.append([
@@ -368,7 +381,8 @@ def process_case(driver, claim_url, case_id, processed_claims):
                     ', '.join(credit_results.get('credit_keywords', [])),
                     credit_results.get('highlight_url', ''),
                     credit_results.get('error', ''),
-                    credit_results.get('screenshot_path', '')
+                    credit_results.get('screenshot_path', ''),
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 ])
                 
         except Exception as e:
@@ -400,7 +414,7 @@ def main():
     try:
         login(driver)
         
-        qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE, filter_type)
+        qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE, processed_claims, filter_type)
         
         print(f"[INFO] Found {len(qualifying_cases)} qualifying cases to process")
         
@@ -410,8 +424,8 @@ def main():
             writer = csv.writer(f)
             writer.writerow([
                 "case_id", "case_url", "hit_number", "page_url", "image_url",
-                "image_found", "keyword_found", "keywords_list", "highlight_url", 
-                "error_status", "screenshot_path"
+                "image_found", "keyword_found", "keywords_list", "keyword_highlight", 
+                "error_status", "screenshot_path", "processed_at"
             ])
             
             for i, claim_url in enumerate(qualifying_cases, 1):

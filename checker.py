@@ -69,6 +69,105 @@ from library import (
 )
 
 
+def save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, results):
+    """Save case information to daily CSV file with file locking"""
+    import fcntl
+    import tempfile
+    import shutil
+    from datetime import datetime
+    
+    # Create daily CSV filename with date
+    today = datetime.now().strftime('%Y-%m-%d')
+    daily_csv = f"daily_claims_{today}.csv"
+    
+    # Create the daily CSV file if it doesn't exist
+    if not os.path.exists(daily_csv):
+        print(f"📅 Creating new daily CSV file: {daily_csv}")
+        with open(daily_csv, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = [
+                'case_id', 'case_url', 'hit_number', 'page_url', 'image_url',
+                'image_found', 'keyword_found', 'keywords_list', 'credit_texts', 'keyword_highlight', 
+                'error_status', 'screenshot_path', 'processed_at'
+            ]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+    
+    try:
+        # Create a lock file path
+        lock_file = f"{daily_csv}.lock"
+        
+        # Use file locking to prevent concurrent writes
+        with open(lock_file, 'w') as lock_f:
+            fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX)  # Exclusive lock
+            
+            try:
+                # Check if file exists to determine if we need headers
+                file_exists = os.path.exists(daily_csv)
+                
+                # Read existing data
+                existing_data = []
+                if file_exists:
+                    with open(daily_csv, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        existing_data = list(reader)
+                
+                # Prepare new row data
+                fieldnames = [
+                    'case_id', 'case_url', 'hit_number', 'page_url', 'image_url',
+                    'image_found', 'keyword_found', 'keywords_list', 'credit_texts', 'keyword_highlight', 
+                    'error_status', 'screenshot_path', 'processed_at'
+                ]
+                
+                # Ensure all values are properly handled
+                credit_keywords = results.get('credit_keywords', []) or []
+                credit_texts = results.get('credit_texts', []) or []
+                error_msg = results.get('error', '') or ''
+                
+                row_data = {
+                    'case_id': str(case_id) if case_id else '',
+                    'case_url': str(case_url) if case_url else '',
+                    'hit_number': str(hit_number) if hit_number else '',
+                    'page_url': str(page_url) if page_url else '',
+                    'image_url': str(image_url) if image_url else '',
+                    'image_found': bool(results.get('image_found', False)),
+                    'keyword_found': bool(credit_keywords),
+                    'keywords_list': ', '.join(str(k) for k in credit_keywords) if credit_keywords else '',
+                    'credit_texts': ', '.join(str(t) for t in credit_texts) if credit_texts else '',
+                    'keyword_highlight': str(results.get('highlight_url', '')) if results.get('highlight_url') else '',
+                    'error_status': 'Success' if not error_msg else str(error_msg),
+                    'screenshot_path': str(results.get('screenshot_path', '')) if results.get('screenshot_path') else '',
+                    'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                
+                # Add new row to existing data
+                existing_data.append(row_data)
+                
+                # Write to temporary file first (atomic operation)
+                temp_file = f"{daily_csv}.tmp"
+                with open(temp_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(existing_data)
+                    f.flush()
+                    os.fsync(f.fileno())  # Force write to disk
+                
+                # Atomically replace the original file
+                shutil.move(temp_file, daily_csv)
+                
+                print(f"📅 Case {case_id} hit {hit_number} saved to {daily_csv}")
+                
+            finally:
+                # Lock is automatically released when the file is closed
+                pass
+                
+    except Exception as e:
+        print(f"❌ Error saving case to daily CSV: {e}")
+        # Clean up temp file if it exists
+        temp_file = f"{daily_csv}.tmp"
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+
+
 def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url, results):
     """Save case information to overall_checked_claims.csv with file locking"""
     import fcntl
@@ -97,22 +196,28 @@ def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url,
                 # Prepare new row data
                 fieldnames = [
                     'case_id', 'case_url', 'hit_number', 'page_url', 'image_url',
-                    'image_found', 'keyword_found', 'keywords_list', 'keyword_highlight', 
+                    'image_found', 'keyword_found', 'keywords_list', 'credit_texts', 'keyword_highlight', 
                     'error_status', 'screenshot_path', 'processed_at'
                 ]
                 
+                # Ensure all values are properly handled
+                credit_keywords = results.get('credit_keywords', []) or []
+                credit_texts = results.get('credit_texts', []) or []
+                error_msg = results.get('error', '') or ''
+                
                 row_data = {
-                    'case_id': case_id,
-                    'case_url': case_url,
-                    'hit_number': hit_number,
-                    'page_url': page_url,
-                    'image_url': image_url,
-                    'image_found': results.get('image_found', False),
-                    'keyword_found': bool(results.get('credit_keywords')),
-                    'keywords_list': ', '.join(results.get('credit_keywords', [])),
-                    'keyword_highlight': results.get('highlight_url', ''),
-                    'error_status': results.get('error', 'Success') if not results.get('error') else results.get('error'),
-                    'screenshot_path': results.get('screenshot_path', ''),
+                    'case_id': str(case_id) if case_id else '',
+                    'case_url': str(case_url) if case_url else '',
+                    'hit_number': str(hit_number) if hit_number else '',
+                    'page_url': str(page_url) if page_url else '',
+                    'image_url': str(image_url) if image_url else '',
+                    'image_found': bool(results.get('image_found', False)),
+                    'keyword_found': bool(credit_keywords),
+                    'keywords_list': ', '.join(str(k) for k in credit_keywords) if credit_keywords else '',
+                    'credit_texts': ', '.join(str(t) for t in credit_texts) if credit_texts else '',
+                    'keyword_highlight': str(results.get('highlight_url', '')) if results.get('highlight_url') else '',
+                    'error_status': 'Success' if not error_msg else str(error_msg),
+                    'screenshot_path': str(results.get('screenshot_path', '')) if results.get('screenshot_path') else '',
                     'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }
                 
@@ -132,6 +237,9 @@ def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url,
                 shutil.move(temp_file, OVERALL_CSV)
                 
                 print(f"💾 Case {case_id} hit {hit_number} saved to {OVERALL_CSV}")
+                
+                # Also save to daily CSV
+                save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, results)
                 
             finally:
                 # Lock is automatically released when the file is closed

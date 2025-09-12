@@ -355,25 +355,30 @@ def take_full_screenshot_with_timestamp(driver, image_element=None, output_path=
 
 
 def wait_for_images_to_load(driver):
-    """Wait for all images on the page to finish loading"""
+    """Wait for images to load with a more reasonable timeout"""
     try:
         print("⏳ Waiting for images to load...")
-        # Use a reasonable wait without strict timeout
-        for attempt in range(30):  # 30 seconds max
+        # Reduced timeout to 10 seconds max
+        for attempt in range(10):  # 10 seconds max
             all_loaded = driver.execute_script("""
                 var images = document.querySelectorAll('img');
+                var loadedCount = 0;
+                var totalCount = images.length;
+                
                 for (var i = 0; i < images.length; i++) {
-                    if (!images[i].complete || images[i].naturalHeight === 0) {
-                        return false;
+                    if (images[i].complete && images[i].naturalHeight > 0) {
+                        loadedCount++;
                     }
                 }
-                return true;
+                
+                // Consider loaded if 80% of images are loaded or if we have at least 5 loaded images
+                return loadedCount >= Math.max(5, totalCount * 0.8);
             """)
             if all_loaded:
-                print("✅ All images loaded")
+                print("✅ Images loaded (80% threshold reached)")
                 return
             time.sleep(1)
-        print("⚠️ Image loading timed out, continuing anyway")
+        print("⚠️ Image loading timed out after 10s, continuing anyway")
     except Exception as e:
         print(f"⚠️ Image loading check failed: {e}")
 

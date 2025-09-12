@@ -30,6 +30,7 @@ case "${1:-start}" in
           -v "$(pwd)/logs:/app/logs" \
           -v "$(pwd)/overall_checked_claims.csv:/app/overall_checked_claims.csv" \
           -v "$(pwd)/claims.csv:/app/claims.csv" \
+          -v "$(pwd):/app/data" \
           --shm-size=2g \
           --security-opt seccomp:unconfined \
           -e BATCH_SIZE=$BATCH_SIZE \
@@ -44,6 +45,7 @@ case "${1:-start}" in
           -v "$(pwd)/logs:/app/logs" \
           -v "$(pwd)/overall_checked_claims.csv:/app/overall_checked_claims.csv" \
           -v "$(pwd)/claims.csv:/app/claims.csv" \
+          -v "$(pwd)/daily_claims_$(date +%Y-%m-%d).csv:/app/daily_claims_$(date +%Y-%m-%d).csv" \
           --shm-size=2g \
           --security-opt seccomp:unconfined \
           -e BATCH_SIZE=$BATCH_SIZE \
