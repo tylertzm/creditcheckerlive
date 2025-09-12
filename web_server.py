@@ -7,7 +7,7 @@ Regenerates the report on each request
 import os
 import sys
 from flask import Flask, render_template_string, send_file, request, Response
-from generate_report import generate_html_report
+from generate_report import generate_html_dashboard
 import base64
 
 app = Flask(__name__)
@@ -48,7 +48,7 @@ def credit_checker_report():
     """Generate and serve the credit checker report"""
     try:
         # Generate fresh report
-        html_content = generate_html_report()
+        html_content = generate_html_dashboard()
         return html_content
     except Exception as e:
         return f"""
@@ -61,6 +61,31 @@ def credit_checker_report():
         </body>
         </html>
         """, 500
+
+@app.route('/overall_checked_claims.csv')
+@requires_auth
+def serve_overall_csv():
+    """Serve the overall checked claims CSV file"""
+    try:
+        return send_file('overall_checked_claims.csv', 
+                        as_attachment=True, 
+                        download_name='overall_checked_claims.csv',
+                        mimetype='text/csv')
+    except FileNotFoundError:
+        return "CSV file not found", 404
+
+@app.route('/daily_claims_<date>.csv')
+@requires_auth
+def serve_daily_csv(date):
+    """Serve daily claims CSV file"""
+    try:
+        filename = f'daily_claims_{date}.csv'
+        return send_file(filename, 
+                        as_attachment=True, 
+                        download_name=filename,
+                        mimetype='text/csv')
+    except FileNotFoundError:
+        return f"Daily CSV file for {date} not found", 404
 
 @app.route('/status')
 def status():

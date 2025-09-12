@@ -2,6 +2,7 @@ import os
 import csv
 import sys
 import time
+import fcntl
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -22,7 +23,7 @@ EMAIL = 'siu-wang.HUNG@mediaident.com'
 PASSWORD = '!Changedpwat0616'
 OUTPUT_CSV = "claims.csv"
 
-MAX_HITS_PER_CLAIM = 3
+MAX_HITS_PER_CLAIM = 2  # Process claims with 2 or fewer hits
 OVERALL_CSV = "overall_checked_claims.csv"
 
 def load_processed_claims():
@@ -175,7 +176,19 @@ def login(driver):
 def get_qualifying_cases(driver, target_count, processed_claims, filter_type=None):
     """Get qualifying cases from the review list"""
     qualifying_cases = []
+    
+    # Load last processed page from progress file
+    progress_file = f"last_page_{filter_type}.txt"
     current_page = 1
+    try:
+        if os.path.exists(progress_file):
+            with open(progress_file, 'r') as f:
+                saved_page = int(f.read().strip())
+                current_page = max(1, saved_page)  # Start from last page or page 1
+                print(f"[INFO] Resuming from page {current_page} (saved progress)")
+    except (ValueError, FileNotFoundError):
+        current_page = 1
+        print(f"[INFO] Starting from page 1 (no saved progress)")
     
     while len(qualifying_cases) < target_count:
         print(f"[INFO] Processing page {current_page}")
@@ -234,16 +247,107 @@ def get_qualifying_cases(driver, target_count, processed_claims, filter_type=Non
         try:
             next_button = driver.find_element(By.CSS_SELECTOR, 'a[rel="next"]')
             if not next_button or not next_button.is_enabled():
-                break
+                print(f"[INFO] Reached last page ({current_page}), cycling back to page 1")
+                current_page = 1
+                # Save progress to reset to page 1
+                try:
+                    with open(progress_file, 'w') as f:
+                        f.write(str(current_page))
+                    print(f"[INFO] Reset progress to page {current_page}")
+                except Exception as e:
+                    print(f"[WARN] Could not save progress reset: {e}")
+                continue  # Continue the loop from page 1
+            else:
+                # Normal case: there is a next button, so increment page
+                current_page += 1
         except:
-            break
+            print(f"[INFO] No next button found on page {current_page}, cycling back to page 1")
+            current_page = 1
+            # Save progress to reset to page 1
+            try:
+                with open(progress_file, 'w') as f:
+                    f.write(str(current_page))
+                print(f"[INFO] Reset progress to page {current_page}")
+            except Exception as e:
+                print(f"[WARN] Could not save progress reset: {e}")
+            continue  # Continue the loop from page 1
             
-        current_page += 1
+        # Save progress before moving to next page
+        try:
+            with open(progress_file, 'w') as f:
+                f.write(str(current_page))
+            print(f"[INFO] Saved progress: page {current_page}")
+        except Exception as e:
+            print(f"[WARN] Could not save progress: {e}")
         
-        if current_page > 50:
-            break
+        # Removed page limit - keep going until we find new claims!
     
     return qualifying_cases
+
+def update_overall_checked_claims(case_rows):
+    """Update the overall_checked_claims.csv file with new case data"""
+    
+    if not case_rows:
+        return
+    
+    try:
+        # Use file locking to prevent concurrent writes
+        with open('overall_checked_claims.csv', 'a', newline='', encoding='utf-8') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            
+            # Check if file is empty to write header
+            if f.tell() == 0:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "case_id", "case_url", "hit_number", "page_url", "image_url",
+                    "image_found", "keyword_found", "keywords_list", "credit_texts", 
+                    "keyword_highlight", "error_status", "screenshot_path", "processed_at"
+                ])
+            
+            writer = csv.writer(f)
+            for row in case_rows:
+                writer.writerow(row)
+            
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        print(f"[INFO] ✅ Successfully updated overall_checked_claims.csv with {len(case_rows)} rows")
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to update overall_checked_claims.csv: {e}")
+
+def update_daily_claims(case_rows):
+    """Update the daily claims CSV file with new case data"""
+    if not case_rows:
+        return
+    
+    try:
+        # Get today's date for the daily file
+        today = datetime.now().strftime('%Y-%m-%d')
+        daily_filename = f'daily_claims_{today}.csv'
+        
+        # Use file locking to prevent concurrent writes
+        with open(daily_filename, 'a', newline='', encoding='utf-8') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            
+            # Check if file is empty to write header
+            if f.tell() == 0:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "case_id", "case_url", "hit_number", "page_url", "image_url",
+                    "image_found", "keyword_found", "keywords_list", "credit_texts", 
+                    "keyword_highlight", "error_status", "screenshot_path", "processed_at"
+                ])
+            
+            writer = csv.writer(f)
+            for row in case_rows:
+                writer.writerow(row)
+            
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        
+        print(f"[INFO] ✅ Successfully updated {daily_filename} with {len(case_rows)} rows")
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to update daily claims CSV: {e}")
 
 def process_case(driver, claim_url, case_id, processed_claims):
     """Process a single case and extract hit information with immediate credit checking"""
@@ -456,9 +560,10 @@ def main():
                                 claim_key = f"{case_id}_{hit_number}"
                                 processed_claims.add(claim_key)
                             
-                            # Update overall_checked_claims.csv immediately after processing this case
+                            # Update both overall and daily claims CSV files immediately after processing this case
                             print(f"[INFO] Updating overall_checked_claims.csv with {len(case_rows)} rows from case {case_id}")
                             update_overall_checked_claims(case_rows)
+                            update_daily_claims(case_rows)
                             
                             print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
                         else:

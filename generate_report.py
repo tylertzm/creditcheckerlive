@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Credit Checker Report Generator
-Generates an HTML report showing statistics for all CSV files
+Credit Checker Dashboard Generator
+Generates a clean viewport-contained dashboard HTML report
 """
 
 import os
@@ -20,7 +20,12 @@ def get_file_stats(filepath):
             lines = f.readlines()
         
         total_lines = len(lines)
-        data_lines = total_lines - 1 if total_lines > 0 else 0  # Subtract header
+        # Count only rows with exactly 13 fields (valid data rows)
+        data_lines = 0
+        for line in lines[1:]:  # Skip header
+            parts = line.strip().split(',')
+            if len(parts) == 13:
+                data_lines += 1
         
         # Get file size
         file_size = os.path.getsize(filepath)
@@ -29,31 +34,39 @@ def get_file_stats(filepath):
         # Get modification time
         mod_time = datetime.fromtimestamp(os.path.getmtime(filepath))
         
-        # Try to get keyword statistics if it's a data CSV
+        # Try to get keyword statistics if it's a data CSV - only count rows with 7 fields
         keyword_stats = {}
         if data_lines > 0 and total_lines > 1:
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    rows = list(reader)
-                
-                if rows:
-                    # Count keyword found cases
-                    keyword_found = sum(1 for row in rows if row.get('keyword_found', '').lower() == 'true')
-                    no_keywords = sum(1 for row in rows if row.get('keyword_found', '').lower() == 'false')
-                    
-                    # Count image found cases
-                    image_found = sum(1 for row in rows if row.get('image_found', '').lower() == 'true')
-                    no_images = sum(1 for row in rows if row.get('image_found', '').lower() == 'false')
-                    
-                    keyword_stats = {
-                        'with_keywords': keyword_found,
-                        'without_keywords': no_keywords,
-                        'success_rate': (keyword_found / len(rows) * 100) if len(rows) > 0 else 0,
-                        'with_images': image_found,
-                        'without_images': no_images,
-                        'image_success_rate': (image_found / len(rows) * 100) if len(rows) > 0 else 0
-                    }
+                    lines = f.readlines()
+                    if len(lines) > 1:
+                        header = lines[0].strip().split(',')
+                        valid_rows = []
+                        
+                        # Only process rows with exactly 13 fields
+                        for line in lines[1:]:
+                            parts = line.strip().split(',')
+                            if len(parts) == 13:
+                                valid_rows.append(parts)
+                        
+                        if valid_rows:
+                            # Count keyword found cases (column 7, index 6)
+                            keyword_found = sum(1 for row in valid_rows if len(row) > 6 and row[6].lower() == 'true')
+                            no_keywords = sum(1 for row in valid_rows if len(row) > 6 and row[6].lower() == 'false')
+                            
+                            # Count image found cases (column 6, index 5)
+                            image_found = sum(1 for row in valid_rows if len(row) > 5 and row[5].lower() == 'true')
+                            no_images = sum(1 for row in valid_rows if len(row) > 5 and row[5].lower() == 'false')
+                            
+                            keyword_stats = {
+                                'with_keywords': keyword_found,
+                                'without_keywords': no_keywords,
+                                'success_rate': (keyword_found / len(valid_rows) * 100) if len(valid_rows) > 0 else 0,
+                                'with_images': image_found,
+                                'without_images': no_images,
+                                'image_success_rate': (image_found / len(valid_rows) * 100) if len(valid_rows) > 0 else 0
+                            }
             except Exception as e:
                 keyword_stats = {'error': str(e)}
         
@@ -84,11 +97,13 @@ def get_archived_csvs():
         archived_files = glob.glob('logs/archive/*.csv')
     return sorted(archived_files)
 
-def generate_html_report():
-    """Generate the HTML report"""
+def generate_html_dashboard():
+    """Generate the clean viewport dashboard HTML"""
     
-    # Get current time
-    now = datetime.now()
+    # Get current time in local timezone
+    from datetime import timezone, timedelta
+    local_tz = timezone(timedelta(hours=2))  # UTC+2 timezone
+    now = datetime.now(local_tz)
     
     # Get file statistics
     overall_csv = get_overall_csv()
@@ -100,9 +115,40 @@ def generate_html_report():
     daily_stats = {f: get_file_stats(f) for f in daily_csvs}
     archived_stats = {f: get_file_stats(f) for f in archived_csvs}
     
-    # Calculate totals from daily CSVs only
-    total_daily_rows = sum(stats['data_lines'] for stats in daily_stats.values() if stats and 'data_lines' in stats)
-    total_archived_cases = sum(stats['data_lines'] for stats in archived_stats.values() if stats and 'data_lines' in stats)
+    # Calculate totals from daily CSVs only - count only rows with 7 fields
+    total_daily_rows = 0
+    for filename, stats in daily_stats.items():
+        if stats and 'error' not in stats:
+            try:
+                with open(filename, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    if len(lines) > 1:
+                        # Count only rows with exactly 13 fields
+                        valid_rows = 0
+                        for line in lines[1:]:
+                            parts = line.strip().split(',')
+                            if len(parts) == 13:
+                                valid_rows += 1
+                        total_daily_rows += valid_rows
+            except Exception as e:
+                print(f"Warning: Could not count valid rows in {filename}: {e}")
+    # Calculate archived cases using the same robust parsing
+    total_archived_cases = 0
+    for filename, stats in archived_stats.items():
+        if stats and 'error' not in stats:
+            try:
+                with open(filename, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    if len(lines) > 1:
+                        # Count only rows with exactly 13 fields
+                        valid_rows = 0
+                        for line in lines[1:]:
+                            parts = line.strip().split(',')
+                            if len(parts) == 13:
+                                valid_rows += 1
+                        total_archived_cases += valid_rows
+            except Exception as e:
+                print(f"Warning: Could not count valid rows in {filename}: {e}")
     
     # Calculate unique case IDs and combined statistics from all daily CSVs
     unique_case_ids = set()
@@ -113,14 +159,22 @@ def generate_html_report():
     
     for filename, stats in daily_stats.items():
         if stats and 'error' not in stats:
-            # Count unique case IDs from this file
+            # Count unique case IDs from this file - only count rows with 7 fields
             try:
                 with open(filename, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        case_id = row.get('case_id', '').strip()
-                        if case_id:
-                            unique_case_ids.add(case_id)
+                    lines = f.readlines()
+                    if len(lines) > 1:  # Skip if only header
+                        for line_num, line in enumerate(lines[1:], 2):
+                            try:
+                                # Split by comma and check if we have exactly 13 fields
+                                parts = line.strip().split(',')
+                                if len(parts) == 13:
+                                    case_id = parts[0].strip()
+                                    if case_id and case_id.isdigit():
+                                        unique_case_ids.add(case_id)
+                            except Exception as e:
+                                # Skip malformed lines
+                                continue
             except Exception as e:
                 print(f"Warning: Could not read {filename} for case ID counting: {e}")
             
@@ -133,288 +187,350 @@ def generate_html_report():
                 total_no_keywords += keyword_stats.get('without_keywords', 0)
     
     total_unique_cases = len(unique_case_ids)
-    total_hits = total_images_found + total_no_images
-    image_success_rate = (total_images_found / total_hits * 100) if total_hits > 0 else 0
-    keyword_success_rate = (total_keywords_found / total_hits * 100) if total_hits > 0 else 0
+    # Calculate actual processed rows (those with True/False values)
+    total_processed_images = total_images_found + total_no_images
+    total_processed_keywords = total_keywords_found + total_no_keywords
+    total_hits = total_daily_rows  # Total data rows
+    image_success_rate = (total_images_found / total_processed_images * 100) if total_processed_images > 0 else 0
+    keyword_success_rate = (total_keywords_found / total_processed_keywords * 100) if total_processed_keywords > 0 else 0
     
     # Generate HTML
-    html = f"""
-<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="30">
-    <title>Credit Checker Report - {now.strftime('%Y-%m-%d %H:%M:%S')}</title>
+    <title>Credit Checker Dashboard</title>
     <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        * {{
             margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
+            padding: 0;
+            box-sizing: border-box;
         }}
-        .container {{
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        
+        body {{
+            font-family: 'Inter', sans-serif;
+            background: #000000;
+            color: #e2e8f0;
+            height: 100vh;
+            overflow: hidden;
+            padding: 20px;
+        }}
+        
+        .dashboard {{
+            height: 100%;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+        }}
+        
+        .header {{
+            text-align: center;
+            padding: 10px 0;
+        }}
+        
+        .header h1 {{
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 4px;
+        }}
+        
+        .header p {{
+            color: #94a3b8;
+            font-size: 0.9em;
+        }}
+        
+        .content {{
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            height: 100%;
             overflow: hidden;
         }}
-        .header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 2.5em;
-            font-weight: 300;
-        }}
-        .header p {{
-            margin: 10px 0 0 0;
-            opacity: 0.9;
-            font-size: 1.1em;
-        }}
-        .content {{
-            padding: 30px;
-        }}
-        .section {{
-            margin-bottom: 40px;
-        }}
-        .section h2 {{
-            color: #667eea;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }}
-        .stats-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        
+        .left-panel {{
+            display: flex;
+            flex-direction: column;
             gap: 20px;
-            margin-bottom: 30px;
+            overflow: auto;
         }}
-        .stat-card {{
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
+        
+        .right-panel {{
+            background: #000000;
             padding: 20px;
-            text-align: center;
+            overflow: auto;
         }}
-        .stat-number {{
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 10px;
+        
+        .section {{
+            background: #000000;
+            padding: 20px;
         }}
-        .stat-label {{
-            color: #6c757d;
+        
+        .section-title {{
             font-size: 1.1em;
-        }}
-        .file-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }}
-        .file-table th, .file-table td {{
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #dee2e6;
-        }}
-        .file-table th {{
-            background-color: #f8f9fa;
             font-weight: 600;
-            color: #495057;
+            color: #f8fafc;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }}
-        .file-table tr:hover {{
-            background-color: #f8f9fa;
-        }}
-        .status-good {{
-            color: #28a745;
-            font-weight: bold;
-        }}
-        .status-warning {{
-            color: #ffc107;
-            font-weight: bold;
-        }}
-        .status-error {{
-            color: #dc3545;
-            font-weight: bold;
-        }}
-        .keyword-stats {{
-            background: #e3f2fd;
-            padding: 15px;
-            border-radius: 5px;
-            margin-top: 10px;
-        }}
-        .keyword-stats h4 {{
-            margin: 0 0 10px 0;
-            color: #1976d2;
-        }}
-        .keyword-grid {{
+        
+        .metrics-grid {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px;
         }}
-        .keyword-item {{
+        
+        .metric {{
             text-align: center;
-            padding: 10px;
-            background: white;
-            border-radius: 5px;
+            padding: 15px;
+            background: #000000;
         }}
-        .keyword-number {{
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #1976d2;
+        
+        .metric-value {{
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #9CAF88;
+            margin-bottom: 4px;
         }}
-        .keyword-label {{
+        
+        .metric-label {{
+            font-size: 0.8em;
+            color: #9ca3af;
+            font-weight: 500;
+        }}
+        
+        .table {{
+            width: 100%;
+        }}
+        
+        .table th {{
+            text-align: left;
+            padding: 8px 12px;
+            color: #6b7280;
+            font-size: 0.8em;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #000000;
+        }}
+        
+        .table td {{
+            padding: 10px 12px;
+            color: #e2e8f0;
+            background: #000000;
             font-size: 0.9em;
-            color: #666;
         }}
-        .footer {{
-            background: #f8f9fa;
-            padding: 20px;
-            text-align: center;
-            color: #6c757d;
-            border-top: 1px solid #dee2e6;
+        
+        .table tr:hover {{
+            background: #000000;
         }}
+        
+        .file-link {{
+            color: #9CAF88;
+            text-decoration: none;
+            font-weight: 500;
+        }}
+        
+        .file-link:hover {{
+            color: #87A96B;
+        }}
+        
+        .status-active {{
+            background: #065f46;
+            color: #10b981;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }}
+        
+        .info-grid {{
+            display: grid;
+            gap: 12px;
+        }}
+        
+        .info-row {{
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            color: #9ca3af;
+            font-size: 0.9em;
+            background: #000000;
+        }}
+        
+        .info-value {{
+            color: #e2e8f0;
+            font-weight: 600;
+        }}
+        
         .refresh-btn {{
-            background: #667eea;
+            width: 100%;
+            padding: 10px;
+            background: #000000;
             color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+            font-weight: 500;
             cursor: pointer;
-            font-size: 1em;
-            margin: 20px 0;
+            margin-top: 15px;
         }}
+        
         .refresh-btn:hover {{
-            background: #5a6fd8;
+            background: #000000;
+        }}
+        
+        @keyframes pulse {{
+            0% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.3); }}
+            100% {{ transform: scale(1.2); }}
+        }}
+        
+        @keyframes glow {{
+            0% {{ text-shadow: 0 0 5px #10b981; }}
+            50% {{ text-shadow: 0 0 20px #10b981, 0 0 30px #10b981; }}
+            100% {{ text-shadow: 0 0 5px #10b981; }}
+        }}
+        
+        @keyframes numberCount {{
+            0% {{ transform: scale(0.8); opacity: 0.7; }}
+            50% {{ transform: scale(1.1); opacity: 1; }}
+            100% {{ transform: scale(1); opacity: 1; }}
+        }}
+        
+        @keyframes slideInUp {{
+            0% {{ transform: translateY(20px); opacity: 0; }}
+            100% {{ transform: translateY(0); opacity: 1; }}
+        }}
+        
+        @keyframes bounce {{
+            0%, 20%, 50%, 80%, 100% {{ transform: translateY(0); }}
+            40% {{ transform: translateY(-10px); }}
+            60% {{ transform: translateY(-5px); }}
+        }}
+        
+        @keyframes shimmer {{
+            0% {{ background-position: -200% 0; }}
+            100% {{ background-position: 200% 0; }}
+        }}
+        
+        .metric-value {{
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }}
+        
+        .metric-value.updating {{
+            animation: numberCount 0.6s ease-out, glow 1s ease-in-out;
+            color: #10b981 !important;
+            text-shadow: 0 0 15px #10b981;
+        }}
+        
+        .metric-value.changed {{
+            animation: bounce 0.8s ease-out;
+            background: linear-gradient(45deg, #065f46, #10b981, #065f46);
+            background-size: 200% 200%;
+            animation: shimmer 1.5s ease-in-out, bounce 0.8s ease-out;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+        
+        .metric-label {{
+            transition: all 0.3s ease;
+        }}
+        
+        .metric-label.updating {{
+            color: #10b981;
+            font-weight: 600;
         }}
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="dashboard">
         <div class="header">
-            <h1>🔍 Credit Checker Report</h1>
-            <p>Generated on {now.strftime('%A, %B %d, %Y at %I:%M %p')}</p>
-            <p style="opacity: 0.8; font-size: 0.9em;">🔄 Auto-refreshes every 30 seconds</p>
+            <h1>Credit Checker Dashboard</h1>
+            <p>{now.strftime('%B %d, %Y • %H:%M')} • Live updates every 3s</p>
         </div>
         
         <div class="content">
-            <div class="section">
-                <h2>📊 Overview Statistics (From Daily CSVs)</h2>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number">{total_unique_cases}</div>
-                        <div class="stat-label">Unique Cases Processed</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{total_hits}</div>
-                        <div class="stat-label">Total Hits Processed</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{len(daily_csvs)}</div>
-                        <div class="stat-label">Daily CSV Files</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{total_images_found}</div>
-                        <div class="stat-label">Images Found</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{total_keywords_found}</div>
-                        <div class="stat-label">Keywords Found</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{image_success_rate:.1f}%</div>
-                        <div class="stat-label">Image Success Rate</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{keyword_success_rate:.1f}%</div>
-                        <div class="stat-label">Keyword Success Rate</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h2>📈 Overall Checked Claims</h2>
-                <table class="file-table">
-                    <thead>
-                        <tr>
-                            <th>File</th>
-                            <th>File Size</th>
-                            <th>Last Modified</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong><a href="http://localhost:8000/{overall_csv}" target="_blank" style="color: #667eea; text-decoration: none;">{overall_csv}</a></strong></td>
-                            <td>{overall_stats['file_size_mb'] if overall_stats else 'N/A'} MB</td>
-                            <td>{overall_stats['mod_time'] if overall_stats else 'N/A'}</td>
-                            <td class="status-good">✓ Active</td>
-                        </tr>
-                    </tbody>
-                </table>
-"""
-    
-    # Add combined daily CSV statistics
-    if total_unique_cases > 0:
-        html += f"""
-                <div class="keyword-stats">
-                    <h4>🎯 Combined Daily CSV Analysis</h4>
-                    <div class="keyword-grid">
-                        <div class="keyword-item">
-                            <div class="keyword-number">{total_keywords_found}</div>
-                            <div class="keyword-label">Keywords Found</div>
+            <div class="left-panel">
+                <!-- Overview Statistics -->
+                <div class="section">
+                    <div class="section-title">📊 Overview Statistics (From Daily CSVs)</div>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-value">{total_unique_cases}</div>
+                            <div class="metric-label">Unique Cases Processed</div>
                         </div>
-                        <div class="keyword-item">
-                            <div class="keyword-number">{total_no_keywords}</div>
-                            <div class="keyword-label">No Keywords</div>
+                        <div class="metric">
+                            <div class="metric-value">{total_hits}</div>
+                            <div class="metric-label">Total Hits Processed</div>
                         </div>
-                        <div class="keyword-item">
-                            <div class="keyword-number">{keyword_success_rate:.1f}%</div>
-                            <div class="keyword-label">Keyword Success Rate</div>
+                        <div class="metric">
+                            <div class="metric-value">{len(daily_csvs)}</div>
+                            <div class="metric-label">Daily CSV Files</div>
                         </div>
-                        <div class="keyword-item">
-                            <div class="keyword-number">{total_images_found}</div>
-                            <div class="keyword-label">Images Found</div>
+                        <div class="metric">
+                            <div class="metric-value">{total_images_found}</div>
+                            <div class="metric-label">Images Found</div>
                         </div>
-                        <div class="keyword-item">
-                            <div class="keyword-number">{total_no_images}</div>
-                            <div class="keyword-label">No Images</div>
+                        <div class="metric">
+                            <div class="metric-value">{total_keywords_found}</div>
+                            <div class="metric-label">Keywords Found</div>
                         </div>
-                        <div class="keyword-item">
-                            <div class="keyword-number">{image_success_rate:.1f}%</div>
-                            <div class="keyword-label">Image Success Rate</div>
+                        <div class="metric">
+                            <div class="metric-value">{image_success_rate:.1f}%</div>
+                            <div class="metric-label">Image Success Rate</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{keyword_success_rate:.1f}%</div>
+                            <div class="metric-label">Keyword Success Rate</div>
                         </div>
                     </div>
                 </div>
-            """
-    
-    html += """
-            </div>
-            
-            <div class="section">
-                <h2>📅 Daily CSV Files</h2>
-                <table class="file-table">
-                    <thead>
-                        <tr>
-                            <th>File</th>
-                            <th>File Size</th>
-                            <th>Last Modified</th>
-                            <th>Images Found</th>
-                            <th>Keywords Found</th>
-                            <th>Image Success Rate</th>
-                            <th>Keyword Success Rate</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-"""
-    
-    # Add daily CSV rows
+                
+                <!-- Overall Claims -->
+                <div class="section">
+                    <div class="section-title">📈 Overall Checked Claims</div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>File Size</th>
+                                <th>Last Modified</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><a href="/{overall_csv}" class="file-link">{overall_csv}</a></td>
+                                <td>{overall_stats['file_size_mb'] if overall_stats else 'N/A'} MB</td>
+                                <td>{overall_stats['mod_time'] if overall_stats else 'N/A'}</td>
+                                <td><span class="status-active">✓ Active</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Daily CSV Files -->
+                <div class="section">
+                    <div class="section-title">📅 Daily CSV Files</div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Total Processed Hits</th>
+                                <th>File Size</th>
+                                <th>Last Modified</th>
+                                <th>Images Found</th>
+                                <th>Keywords Found</th>
+                                <th>Image Success Rate</th>
+                                <th>Keyword Success Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>"""
+
+    # Add daily CSV files
     for filename in daily_csvs:
         stats = daily_stats.get(filename, {})
         if stats and 'error' not in stats:
@@ -422,121 +538,331 @@ def generate_html_report():
             success_rate = keyword_stats.get('success_rate', 0) if 'error' not in keyword_stats else 0
             keywords_found = keyword_stats.get('with_keywords', 0) if 'error' not in keyword_stats else 0
             images_found = keyword_stats.get('with_images', 0) if 'error' not in keyword_stats else 0
-            image_success_rate = keyword_stats.get('image_success_rate', 0) if 'error' not in keyword_stats else 0
+            image_success_rate_daily = keyword_stats.get('image_success_rate', 0) if 'error' not in keyword_stats else 0
             
-            status_class = "status-good" if success_rate > 0 else "status-warning"
-            image_status_class = "status-good" if image_success_rate > 0 else "status-warning"
+            # Get total processed hits for this file
+            total_processed_hits = stats.get('data_lines', 0)
             
             html += f"""
-                        <tr>
-                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{filename}</a></strong></td>
-                            <td>{stats.get('file_size_mb', 'N/A')} MB</td>
-                            <td>{stats.get('mod_time', 'N/A')}</td>
-                            <td class="{image_status_class}">{images_found}</td>
-                            <td class="{status_class}">{keywords_found}</td>
-                            <td class="{image_status_class}">{image_success_rate:.1f}%</td>
-                            <td class="{status_class}">{success_rate:.1f}%</td>
-                        </tr>
-            """
-        else:
-            html += f"""
-                        <tr>
-                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{filename}</a></strong></td>
-                            <td colspan="6" class="status-error">Error reading file</td>
-                        </tr>
-            """
-    
-    html += """
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>📁 Archived CSV Files</h2>
-                <table class="file-table">
-                    <thead>
-                        <tr>
-                            <th>File</th>
-                            <th>Total Lines</th>
-                            <th>Data Rows</th>
-                            <th>File Size</th>
-                            <th>Last Modified</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-"""
-    
-    # Add archived CSV rows
-    for filename in archived_csvs:
-        stats = archived_stats.get(filename, {})
-        if stats and 'error' not in stats:
-            html += f"""
-                        <tr>
-                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{os.path.basename(filename)}</a></strong></td>
-                            <td>{stats.get('file_size_mb', 'N/A')} MB</td>
-                            <td>{stats.get('mod_time', 'N/A')}</td>
-                        </tr>
-            """
-        else:
-            html += f"""
-                        <tr>
-                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{os.path.basename(filename)}</a></strong></td>
-                            <td colspan="2" class="status-error">Error reading file</td>
-                        </tr>
-            """
-    
+                            <tr>
+                                <td><a href="/{filename}" class="file-link">{filename}</a></td>
+                                <td>{total_processed_hits}</td>
+                                <td>{stats.get('file_size_mb', 'N/A')} MB</td>
+                                <td>{stats.get('mod_time', 'N/A')}</td>
+                                <td>{images_found}</td>
+                                <td>{keywords_found}</td>
+                                <td>{image_success_rate_daily:.1f}%</td>
+                                <td>{success_rate:.1f}%</td>
+                            </tr>"""
+
     html += f"""
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>🔄 System Status</h2>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number">{len([f for f in daily_csvs if os.path.exists(f)])}</div>
-                        <div class="stat-label">Active Daily Files</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{len([f for f in daily_csvs if os.path.exists(f + '.lock')])}</div>
-                        <div class="stat-label">Locked Files</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{total_archived_cases}</div>
-                        <div class="stat-label">Archived Cases</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{now.strftime('%H:%M')}</div>
-                        <div class="stat-label">Last Updated</div>
-                    </div>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Archived Files -->
+                <div class="section">
+                    <div class="section-title">📁 Archived CSV Files</div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Total Lines</th>
+                                <th>Data Rows</th>
+                                <th>File Size</th>
+                                <th>Last Modified</th>
+                            </tr>
+                        </thead>
+                        <tbody>"""
+
+    # Add archived CSV files (if any)
+    if not archived_csvs:
+        html += """
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: #6b7280; font-style: italic;">No archived files</td>
+                            </tr>"""
+    else:
+        for filename in archived_csvs:
+            stats = archived_stats.get(filename, {})
+            if stats and 'error' not in stats:
+                html += f"""
+                            <tr>
+                                <td><a href="/{filename}" class="file-link">{os.path.basename(filename)}</a></td>
+                                <td>{stats.get('total_lines', 'N/A')}</td>
+                                <td>{stats.get('data_lines', 'N/A')}</td>
+                                <td>{stats.get('file_size_mb', 'N/A')} MB</td>
+                                <td>{stats.get('mod_time', 'N/A')}</td>
+                            </tr>"""
+
+    html += f"""
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
-        
-        <div class="footer">
-            <p>Credit Checker System Report | Generated by generate_report.py</p>
-            <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Report</button>
+            
+            <div class="right-panel">
+                <!-- System Status -->
+                <div class="section-title">🔄 System Status</div>
+                <div class="info-grid">
+                    <div class="info-row">
+                        <span>Active Daily Files</span>
+                        <span class="info-value">{len([f for f, s in daily_stats.items() if s and 'error' not in s])}</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Locked Files</span>
+                        <span class="info-value">{len([f for f in daily_csvs if os.path.exists(f + '.lock')])}</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Archived Cases</span>
+                        <span class="info-value">{len(archived_csvs)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Last Updated</span>
+                        <span class="info-value">{now.strftime('%H:%M')}</span>
+                    </div>
+                </div>
+                
+                <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Report</button>
+            </div>
         </div>
     </div>
+    
+    <script>
+        // Real-time data updates
+        let updateInterval;
+        
+        // Smooth number counting animation
+        function animateNumber(element, startValue, endValue, duration = 1000) {{
+            const startTime = performance.now();
+            const isPercentage = endValue.toString().includes('%');
+            const numericEndValue = parseFloat(endValue.replace('%', ''));
+            const numericStartValue = parseFloat(startValue.replace('%', ''));
+            
+            function updateNumber(currentTime) {{
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Easing function for smooth animation
+                const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+                const currentValue = numericStartValue + (numericEndValue - numericStartValue) * easeOutCubic;
+                
+                if (isPercentage) {{
+                    element.textContent = currentValue.toFixed(1) + '%';
+                }} else {{
+                    element.textContent = Math.round(currentValue).toLocaleString();
+                }}
+                
+                if (progress < 1) {{
+                    requestAnimationFrame(updateNumber);
+                }} else {{
+                    element.textContent = endValue;
+                }}
+            }}
+            
+            requestAnimationFrame(updateNumber);
+        }}
+        
+        function updateDashboard() {{
+            // Add loading indicator with animation
+            const header = document.querySelector('.header p');
+            if (header) {{
+                const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
+                header.innerHTML = originalText + ' • <span style="color: #10b981; animation: pulse 1s infinite;">🔄 UPDATING</span>';
+            }}
+            
+            fetch('/credit_checker_report.html', {{
+                credentials: 'include',
+                headers: {{
+                    'Authorization': 'Basic ' + btoa('admin:ralphlauren7')
+                }}
+            }})
+            .then(response => response.text())
+            .then(html => {{
+                // Parse the new HTML
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(html, 'text/html');
+                
+                // Update metric values with enhanced animations
+                const metrics = document.querySelectorAll('.metric-value');
+                const newMetrics = newDoc.querySelectorAll('.metric-value');
+                const metricLabels = document.querySelectorAll('.metric-label');
+                let hasChanges = false;
+                
+                metrics.forEach((metric, index) => {{
+                    if (newMetrics[index]) {{
+                        const oldValue = metric.textContent.trim();
+                        const newValue = newMetrics[index].textContent.trim();
+                        
+                        if (oldValue !== newValue) {{
+                            hasChanges = true;
+                            
+                            // Add updating class for visual feedback
+                            metric.classList.add('updating');
+                            if (metricLabels[index]) {{
+                                metricLabels[index].classList.add('updating');
+                            }}
+                            
+                            // Animate the number change
+                            setTimeout(() => {{
+                                animateNumber(metric, oldValue, newValue, 800);
+                                
+                                // Add changed class for final effect
+                                setTimeout(() => {{
+                                    metric.classList.remove('updating');
+                                    metric.classList.add('changed');
+                                    if (metricLabels[index]) {{
+                                        metricLabels[index].classList.remove('updating');
+                                    }}
+                                    
+                                    // Remove changed class after animation
+                                    setTimeout(() => {{
+                                        metric.classList.remove('changed');
+                                    }}, 1500);
+                                }}, 400);
+                            }}, 100);
+                        }}
+                    }}
+                }});
+                
+                // Show update indicator with enhanced feedback
+                if (hasChanges) {{
+                    console.log('📊 Dashboard updated with changes!');
+                    
+                    // Add a subtle notification
+                    const notification = document.createElement('div');
+                    notification.style.cssText = `
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        background: #065f46;
+                        color: #10b981;
+                        padding: 10px 15px;
+                        border-radius: 5px;
+                        font-weight: 600;
+                        z-index: 1000;
+                        animation: slideInUp 0.5s ease-out;
+                        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+                    `;
+                    notification.textContent = '📊 Data Updated!';
+                    document.body.appendChild(notification);
+                    
+                    setTimeout(() => {{
+                        notification.style.animation = 'slideInUp 0.5s ease-out reverse';
+                        setTimeout(() => notification.remove(), 500);
+                    }}, 2000);
+                }}
+                
+                // Update table data with enhanced animations
+                const tableRows = document.querySelectorAll('.table tbody tr');
+                const newTableRows = newDoc.querySelectorAll('.table tbody tr');
+                
+                tableRows.forEach((row, index) => {{
+                    if (newTableRows[index]) {{
+                        const cells = row.querySelectorAll('td');
+                        const newCells = newTableRows[index].querySelectorAll('td');
+                        
+                        cells.forEach((cell, cellIndex) => {{
+                            if (newCells[cellIndex]) {{
+                                const oldValue = cell.textContent.trim();
+                                const newValue = newCells[cellIndex].textContent.trim();
+                                
+                                if (oldValue !== newValue) {{
+                                    // Enhanced cell animation
+                                    cell.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+                                    cell.style.backgroundColor = '#065f46';
+                                    cell.style.transform = 'scale(1.02)';
+                                    cell.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.3)';
+                                    
+                                    setTimeout(() => {{
+                                        cell.textContent = newValue;
+                                        cell.style.backgroundColor = '#000000';
+                                        cell.style.transform = 'scale(1)';
+                                        cell.style.boxShadow = 'none';
+                                    }}, 300);
+                                }}
+                            }}
+                        }});
+                    }}
+                }});
+                
+                // Update timestamp with animation
+                const timestamp = document.querySelector('.header p');
+                const newTimestamp = newDoc.querySelector('.header p');
+                if (timestamp && newTimestamp) {{
+                    timestamp.style.transition = 'all 0.3s ease';
+                    timestamp.style.opacity = '0.7';
+                    setTimeout(() => {{
+                        timestamp.innerHTML = newTimestamp.innerHTML;
+                        timestamp.style.opacity = '1';
+                    }}, 150);
+                }}
+                
+                // Remove loading indicator
+                if (header) {{
+                    const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
+                    header.innerHTML = originalText + ' • <span style="color: #10b981;">🟢 LIVE</span>';
+                }}
+            }})
+            .catch(error => {{
+                console.log('Update failed:', error);
+                // Remove loading indicator on error
+                if (header) {{
+                    const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
+                    header.innerHTML = originalText + ' • <span style="color: #ef4444;">❌ ERROR</span>';
+                }}
+            }});
+        }}
+        
+        // Start auto-updates every 3 seconds
+        function startAutoUpdate() {{
+            updateInterval = setInterval(updateDashboard, 3000);
+        }}
+        
+        // Stop auto-updates
+        function stopAutoUpdate() {{
+            if (updateInterval) {{
+                clearInterval(updateInterval);
+            }}
+        }}
+        
+        // Start updates when page loads
+        document.addEventListener('DOMContentLoaded', function() {{
+            startAutoUpdate();
+            
+            // Add visual indicator for live updates
+            const header = document.querySelector('.header p');
+            if (header) {{
+                header.innerHTML += ' • <span style="color: #10b981;">🟢 LIVE</span>';
+            }}
+        }});
+        
+        // Pause updates when page is not visible
+        document.addEventListener('visibilitychange', function() {{
+            if (document.hidden) {{
+                stopAutoUpdate();
+            }} else {{
+                startAutoUpdate();
+            }}
+        }});
+    </script>
 </body>
-</html>
-"""
+</html>"""
     
     return html
 
 def main():
     """Main function"""
-    print("🔍 Generating Credit Checker Report...")
+    print("🔍 Generating Credit Checker Dashboard...")
     
-    # Generate HTML report
-    html_content = generate_html_report()
+    # Generate HTML dashboard
+    html_content = generate_html_dashboard()
     
     # Write to file
-    output_file = 'credit_checker_report.html'
+    output_file = 'credit_checker_dashboard.html'
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f"✅ Report generated: {output_file}")
+    print(f"✅ Dashboard generated: {output_file}")
     print(f"🌐 Open in browser: file://{os.path.abspath(output_file)}")
     print(f"📊 Or run: open {output_file}")
 

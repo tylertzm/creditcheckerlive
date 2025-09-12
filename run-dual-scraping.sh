@@ -8,7 +8,7 @@ set -e
 
 CONTAINER_EVEN="credit-checker-even"
 CONTAINER_ODD="credit-checker-odd"
-BATCH_SIZE=${BATCH_SIZE:-5}
+BATCH_SIZE=${BATCH_SIZE:-50}  # Look for 50 claims per cycle instead of 5!
 
 case "${1:-start}" in
     start)
