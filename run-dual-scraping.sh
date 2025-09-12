@@ -110,7 +110,11 @@ case "${1:-start}" in
                 docker logs -f $CONTAINER_ODD
                 ;;
             3)
-                docker logs -f $CONTAINER_EVEN $CONTAINER_ODD
+                echo "📋 Viewing logs from both containers (interleaved):"
+                echo "Press Ctrl+C to stop"
+                docker logs -f $CONTAINER_EVEN &
+                docker logs -f $CONTAINER_ODD &
+                wait
                 ;;
             *)
                 echo "Invalid choice"

@@ -1,29 +1,30 @@
 #!/bin/bash
 
-# Credit Checker Report Server Starter
-# Starts a web server to serve the HTML report
-
-PORT=${1:-8080}
-
 echo "🚀 Starting Credit Checker Report Server..."
-echo "📊 Port: $PORT"
 echo ""
 
-# Check if Python is available
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python3 not found. Please install Python3"
-    exit 1
-fi
+# Kill any existing server on port 8000
+pkill -f "python3 -m http.server 8000" 2>/dev/null
 
-# Make sure the script is executable
-chmod +x serve_report.py
+# Start the web server in the background
+python3 -m http.server 8000 --bind 0.0.0.0 &
+SERVER_PID=$!
 
-# Start the server
-echo "🌐 Starting server on port $PORT..."
-echo "📊 Access the report at: http://localhost:$PORT"
-echo "📊 Access the report at: http://$(hostname -I | awk '{print $1}'):$PORT"
-echo "🔄 Report auto-refreshes on each visit"
-echo "⏹️  Press Ctrl+C to stop"
+# Wait a moment for server to start
+sleep 2
+
+# Generate the report
+echo "📊 Generating report..."
+python3 generate_report.py
+
 echo ""
+echo "✅ Report server is running!"
+echo "🌐 Open the report at: http://localhost:8000/credit_checker_report.html"
+echo "📁 CSV files are accessible at:"
+echo "   - http://localhost:8000/daily_claims_2025-09-12.csv"
+echo "   - http://localhost:8000/overall_checked_claims.csv"
+echo ""
+echo "Press Ctrl+C to stop the server"
 
-python3 serve_report.py $PORT
+# Keep the script running
+wait $SERVER_PID

@@ -51,8 +51,6 @@ logs/
 output/
 *.csv
 *.xlsx
-cookies_unpacked/
-ublock_unpacked/
 output/.overall_csv.lock
 
 # Docker

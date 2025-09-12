@@ -42,10 +42,17 @@ def get_file_stats(filepath):
                     keyword_found = sum(1 for row in rows if row.get('keyword_found', '').lower() == 'true')
                     no_keywords = sum(1 for row in rows if row.get('keyword_found', '').lower() == 'false')
                     
+                    # Count image found cases
+                    image_found = sum(1 for row in rows if row.get('image_found', '').lower() == 'true')
+                    no_images = sum(1 for row in rows if row.get('image_found', '').lower() == 'false')
+                    
                     keyword_stats = {
                         'with_keywords': keyword_found,
                         'without_keywords': no_keywords,
-                        'success_rate': (keyword_found / len(rows) * 100) if len(rows) > 0 else 0
+                        'success_rate': (keyword_found / len(rows) * 100) if len(rows) > 0 else 0,
+                        'with_images': image_found,
+                        'without_images': no_images,
+                        'image_success_rate': (image_found / len(rows) * 100) if len(rows) > 0 else 0
                     }
             except Exception as e:
                 keyword_stats = {'error': str(e)}
@@ -93,9 +100,42 @@ def generate_html_report():
     daily_stats = {f: get_file_stats(f) for f in daily_csvs}
     archived_stats = {f: get_file_stats(f) for f in archived_csvs}
     
-    # Calculate totals
-    total_daily_cases = sum(stats['data_lines'] for stats in daily_stats.values() if stats and 'data_lines' in stats)
+    # Calculate totals from daily CSVs only
+    total_daily_rows = sum(stats['data_lines'] for stats in daily_stats.values() if stats and 'data_lines' in stats)
     total_archived_cases = sum(stats['data_lines'] for stats in archived_stats.values() if stats and 'data_lines' in stats)
+    
+    # Calculate unique case IDs and combined statistics from all daily CSVs
+    unique_case_ids = set()
+    total_images_found = 0
+    total_no_images = 0
+    total_keywords_found = 0
+    total_no_keywords = 0
+    
+    for filename, stats in daily_stats.items():
+        if stats and 'error' not in stats:
+            # Count unique case IDs from this file
+            try:
+                with open(filename, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        case_id = row.get('case_id', '').strip()
+                        if case_id:
+                            unique_case_ids.add(case_id)
+            except Exception as e:
+                print(f"Warning: Could not read {filename} for case ID counting: {e}")
+            
+            # Get statistics from the stats
+            if 'keyword_stats' in stats and 'error' not in stats.get('keyword_stats', {}):
+                keyword_stats = stats['keyword_stats']
+                total_images_found += keyword_stats.get('with_images', 0)
+                total_no_images += keyword_stats.get('without_images', 0)
+                total_keywords_found += keyword_stats.get('with_keywords', 0)
+                total_no_keywords += keyword_stats.get('without_keywords', 0)
+    
+    total_unique_cases = len(unique_case_ids)
+    total_hits = total_images_found + total_no_images
+    image_success_rate = (total_images_found / total_hits * 100) if total_hits > 0 else 0
+    keyword_success_rate = (total_keywords_found / total_hits * 100) if total_hits > 0 else 0
     
     # Generate HTML
     html = f"""
@@ -104,6 +144,7 @@ def generate_html_report():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30">
     <title>Credit Checker Report - {now.strftime('%Y-%m-%d %H:%M:%S')}</title>
     <style>
         body {{
@@ -259,27 +300,40 @@ def generate_html_report():
         <div class="header">
             <h1>🔍 Credit Checker Report</h1>
             <p>Generated on {now.strftime('%A, %B %d, %Y at %I:%M %p')}</p>
+            <p style="opacity: 0.8; font-size: 0.9em;">🔄 Auto-refreshes every 30 seconds</p>
         </div>
         
         <div class="content">
             <div class="section">
-                <h2>📊 Overview Statistics</h2>
+                <h2>📊 Overview Statistics (From Daily CSVs)</h2>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-number">{overall_stats['data_lines'] if overall_stats else 0}</div>
-                        <div class="stat-label">Total Cases Processed</div>
+                        <div class="stat-number">{total_unique_cases}</div>
+                        <div class="stat-label">Unique Cases Processed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{total_hits}</div>
+                        <div class="stat-label">Total Hits Processed</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-number">{len(daily_csvs)}</div>
                         <div class="stat-label">Daily CSV Files</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">{total_daily_cases}</div>
-                        <div class="stat-label">Daily Cases</div>
+                        <div class="stat-number">{total_images_found}</div>
+                        <div class="stat-label">Images Found</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">{len(archived_csvs)}</div>
-                        <div class="stat-label">Archived Files</div>
+                        <div class="stat-number">{total_keywords_found}</div>
+                        <div class="stat-label">Keywords Found</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{image_success_rate:.1f}%</div>
+                        <div class="stat-label">Image Success Rate</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{keyword_success_rate:.1f}%</div>
+                        <div class="stat-label">Keyword Success Rate</div>
                     </div>
                 </div>
             </div>
@@ -290,8 +344,6 @@ def generate_html_report():
                     <thead>
                         <tr>
                             <th>File</th>
-                            <th>Total Lines</th>
-                            <th>Data Rows</th>
                             <th>File Size</th>
                             <th>Last Modified</th>
                             <th>Status</th>
@@ -299,9 +351,7 @@ def generate_html_report():
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>{overall_csv}</strong></td>
-                            <td>{overall_stats['total_lines'] if overall_stats else 'N/A'}</td>
-                            <td>{overall_stats['data_lines'] if overall_stats else 'N/A'}</td>
+                            <td><strong><a href="http://localhost:8000/{overall_csv}" target="_blank" style="color: #667eea; text-decoration: none;">{overall_csv}</a></strong></td>
                             <td>{overall_stats['file_size_mb'] if overall_stats else 'N/A'} MB</td>
                             <td>{overall_stats['mod_time'] if overall_stats else 'N/A'}</td>
                             <td class="status-good">✓ Active</td>
@@ -310,25 +360,35 @@ def generate_html_report():
                 </table>
 """
     
-    # Add keyword statistics for overall CSV if available
-    if overall_stats and 'keyword_stats' in overall_stats and overall_stats['keyword_stats']:
-        keyword_stats = overall_stats['keyword_stats']
-        if 'error' not in keyword_stats:
-            html += f"""
+    # Add combined daily CSV statistics
+    if total_unique_cases > 0:
+        html += f"""
                 <div class="keyword-stats">
-                    <h4>🎯 Keyword Analysis</h4>
+                    <h4>🎯 Combined Daily CSV Analysis</h4>
                     <div class="keyword-grid">
                         <div class="keyword-item">
-                            <div class="keyword-number">{keyword_stats.get('with_keywords', 0)}</div>
-                            <div class="keyword-label">With Keywords</div>
+                            <div class="keyword-number">{total_keywords_found}</div>
+                            <div class="keyword-label">Keywords Found</div>
                         </div>
                         <div class="keyword-item">
-                            <div class="keyword-number">{keyword_stats.get('without_keywords', 0)}</div>
-                            <div class="keyword-label">Without Keywords</div>
+                            <div class="keyword-number">{total_no_keywords}</div>
+                            <div class="keyword-label">No Keywords</div>
                         </div>
                         <div class="keyword-item">
-                            <div class="keyword-number">{keyword_stats.get('success_rate', 0):.1f}%</div>
-                            <div class="keyword-label">Success Rate</div>
+                            <div class="keyword-number">{keyword_success_rate:.1f}%</div>
+                            <div class="keyword-label">Keyword Success Rate</div>
+                        </div>
+                        <div class="keyword-item">
+                            <div class="keyword-number">{total_images_found}</div>
+                            <div class="keyword-label">Images Found</div>
+                        </div>
+                        <div class="keyword-item">
+                            <div class="keyword-number">{total_no_images}</div>
+                            <div class="keyword-label">No Images</div>
+                        </div>
+                        <div class="keyword-item">
+                            <div class="keyword-number">{image_success_rate:.1f}%</div>
+                            <div class="keyword-label">Image Success Rate</div>
                         </div>
                     </div>
                 </div>
@@ -343,12 +403,12 @@ def generate_html_report():
                     <thead>
                         <tr>
                             <th>File</th>
-                            <th>Total Lines</th>
-                            <th>Data Rows</th>
                             <th>File Size</th>
                             <th>Last Modified</th>
+                            <th>Images Found</th>
                             <th>Keywords Found</th>
-                            <th>Success Rate</th>
+                            <th>Image Success Rate</th>
+                            <th>Keyword Success Rate</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -361,24 +421,27 @@ def generate_html_report():
             keyword_stats = stats.get('keyword_stats', {})
             success_rate = keyword_stats.get('success_rate', 0) if 'error' not in keyword_stats else 0
             keywords_found = keyword_stats.get('with_keywords', 0) if 'error' not in keyword_stats else 0
+            images_found = keyword_stats.get('with_images', 0) if 'error' not in keyword_stats else 0
+            image_success_rate = keyword_stats.get('image_success_rate', 0) if 'error' not in keyword_stats else 0
             
             status_class = "status-good" if success_rate > 0 else "status-warning"
+            image_status_class = "status-good" if image_success_rate > 0 else "status-warning"
             
             html += f"""
                         <tr>
-                            <td><strong>{filename}</strong></td>
-                            <td>{stats.get('total_lines', 'N/A')}</td>
-                            <td>{stats.get('data_lines', 'N/A')}</td>
+                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{filename}</a></strong></td>
                             <td>{stats.get('file_size_mb', 'N/A')} MB</td>
                             <td>{stats.get('mod_time', 'N/A')}</td>
+                            <td class="{image_status_class}">{images_found}</td>
                             <td class="{status_class}">{keywords_found}</td>
+                            <td class="{image_status_class}">{image_success_rate:.1f}%</td>
                             <td class="{status_class}">{success_rate:.1f}%</td>
                         </tr>
             """
         else:
             html += f"""
                         <tr>
-                            <td><strong>{filename}</strong></td>
+                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{filename}</a></strong></td>
                             <td colspan="6" class="status-error">Error reading file</td>
                         </tr>
             """
@@ -409,9 +472,7 @@ def generate_html_report():
         if stats and 'error' not in stats:
             html += f"""
                         <tr>
-                            <td><strong>{os.path.basename(filename)}</strong></td>
-                            <td>{stats.get('total_lines', 'N/A')}</td>
-                            <td>{stats.get('data_lines', 'N/A')}</td>
+                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{os.path.basename(filename)}</a></strong></td>
                             <td>{stats.get('file_size_mb', 'N/A')} MB</td>
                             <td>{stats.get('mod_time', 'N/A')}</td>
                         </tr>
@@ -419,8 +480,8 @@ def generate_html_report():
         else:
             html += f"""
                         <tr>
-                            <td><strong>{os.path.basename(filename)}</strong></td>
-                            <td colspan="4" class="status-error">Error reading file</td>
+                            <td><strong><a href="http://localhost:8000/{filename}" target="_blank" style="color: #667eea; text-decoration: none;">{os.path.basename(filename)}</a></strong></td>
+                            <td colspan="2" class="status-error">Error reading file</td>
                         </tr>
             """
     

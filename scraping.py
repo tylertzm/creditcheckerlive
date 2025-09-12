@@ -222,16 +222,7 @@ def get_qualifying_cases(driver, target_count, processed_claims, filter_type=Non
                             print(f"[SKIP] Skipping even case {case_id} (odd filter)")
                             continue
                     
-                    # Check if this case has already been processed
-                    case_processed = False
-                    for processed_key in processed_claims:
-                        if processed_key.startswith(f"{case_id}_"):
-                            case_processed = True
-                            break
-                    
-                    if case_processed:
-                        print(f"[SKIP] Case {case_id} already processed, skipping...")
-                        continue
+                    # Note: We don't skip entire cases here - we'll check individual hits later
                     
                     print(f"[INFO] Found qualifying case: {case_id} with {hit_count} hits")
                     qualifying_cases.append(claim_url)
@@ -391,9 +382,11 @@ def process_case(driver, claim_url, case_id, processed_claims):
     
     return case_rows
 
+
 def main():
-    """Main execution function"""
+    """Main execution function with continuous processing"""
     import sys
+    import time
     
     # Get filter type from command line argument
     filter_type = None
@@ -404,53 +397,88 @@ def main():
             sys.exit(1)
         print(f"[INFO] Filtering for {filter_type} case IDs")
     
-    print(f"[INFO] Starting scraping of {CLAIMS_TO_SCRAPE} claims")
+    print(f"\n[INFO] ===== Starting Continuous Credit Checking =====")
+    print(f"[INFO] No cycles - continuous processing mode")
     
-    # Load already processed claims
+    # Load already processed claims once at startup
     processed_claims = load_processed_claims()
+    print(f"[INFO] Loaded {len(processed_claims)} already processed claims from overall_checked_claims.csv")
     
+    # Setup browser driver once
     driver = setup_chrome_driver()
     
     try:
+        # Login once
         login(driver)
         
-        qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE, processed_claims, filter_type)
-        
-        print(f"[INFO] Found {len(qualifying_cases)} qualifying cases to process")
-        
-        all_rows = []
-        
-        with open(OUTPUT_CSV, "w", newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "case_id", "case_url", "hit_number", "page_url", "image_url",
-                "image_found", "keyword_found", "keywords_list", "keyword_highlight", 
-                "error_status", "screenshot_path", "processed_at"
-            ])
+        # Continuous processing loop
+        while True:
+            print(f"\n[INFO] ===== Checking for new claims =====")
             
-            for i, claim_url in enumerate(qualifying_cases, 1):
-                case_id = extract_case_id_from_url(claim_url)
-                print(f"[INFO] Processing case {i}/{len(qualifying_cases)}: {case_id}")
+            # Get qualifying cases (this will automatically skip already processed ones)
+            qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE, processed_claims, filter_type)
+            
+            if not qualifying_cases:
+                print(f"[INFO] No new qualifying cases found. Waiting 10 seconds before next check...")
+                time.sleep(10)
+                continue
+            
+            print(f"[INFO] Found {len(qualifying_cases)} new qualifying cases to process")
+            
+            # Process each case
+            all_rows = []
+            with open(OUTPUT_CSV, "a", newline='', encoding='utf-8') as f:  # Append mode instead of write
+                writer = csv.writer(f)
                 
-                try:
-                    case_rows = process_case(driver, claim_url, case_id, processed_claims)
+                # Write header only if file is empty
+                if f.tell() == 0:
+                    writer.writerow([
+                        "case_id", "case_url", "hit_number", "page_url", "image_url",
+                        "image_found", "keyword_found", "keywords_list", "keyword_highlight", 
+                        "error_status", "screenshot_path", "processed_at"
+                    ])
+                
+                for i, claim_url in enumerate(qualifying_cases, 1):
+                    case_id = extract_case_id_from_url(claim_url)
+                    print(f"[INFO] Processing case {i}/{len(qualifying_cases)}: {case_id}")
                     
-                    writer.writerows(case_rows)
-                    f.flush()
-                    all_rows.extend(case_rows)
-                    print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
-                    
-                    time.sleep(1)
-                    
-                except Exception as e:
-                    print(f"[ERROR] Error processing case {case_id}: {e}")
-                    continue
-        
-        print(f"\n[COMPLETE] Scraping finished!")
-        print(f"[COMPLETE] Results saved to: {OUTPUT_CSV}")
-        print(f"[COMPLETE] Total cases processed: {len(qualifying_cases)}")
-        print(f"[COMPLETE] Total rows written: {len(all_rows)}")
-        
+                    try:
+                        case_rows = process_case(driver, claim_url, case_id, processed_claims)
+                        
+                        if case_rows:  # Only process if we have results
+                            writer.writerows(case_rows)
+                            f.flush()
+                            all_rows.extend(case_rows)
+                            
+                            # Update processed_claims set with all hits from this case
+                            for row in case_rows:
+                                hit_number = row[2]  # hit_number is the 3rd column
+                                claim_key = f"{case_id}_{hit_number}"
+                                processed_claims.add(claim_key)
+                            
+                            # Update overall_checked_claims.csv immediately after processing this case
+                            print(f"[INFO] Updating overall_checked_claims.csv with {len(case_rows)} rows from case {case_id}")
+                            update_overall_checked_claims(case_rows)
+                            
+                            print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
+                        else:
+                            print(f"[INFO] No new hits processed for case {case_id}")
+                        
+                        time.sleep(1)  # Small delay between cases
+                        
+                    except Exception as e:
+                        print(f"[ERROR] Error processing case {case_id}: {e}")
+                        continue
+            
+            print(f"[INFO] ✅ Processed {len(qualifying_cases)} cases, {len(all_rows)} total rows")
+            print(f"[INFO] Waiting 5 seconds before checking for more claims...")
+            time.sleep(5)
+            
+    except KeyboardInterrupt:
+        print(f"\n[INFO] Stopping continuous processing...")
+    except Exception as e:
+        print(f"[ERROR] Fatal error in continuous processing: {e}")
+        raise
     finally:
         driver.quit()
 

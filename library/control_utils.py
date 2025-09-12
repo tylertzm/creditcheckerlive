@@ -162,6 +162,10 @@ def process_hits(input_csv, output_csv, check_image_credits_func):
                     # Error handling
                     error_msg = results.get("error", "")
                     if error_msg:
+                        # Truncate error message to prevent CSV row overflow
+                        if len(str(error_msg)) > 200:
+                            error_msg = str(error_msg)[:200] + "..."
+                            
                         if "404" in error_msg or "Not Found" in error_msg or "Page title indicates error" in error_msg:
                             row["error_status"] = "404 - Page Not Found"
                         elif "timeout" in error_msg.lower():
@@ -184,7 +188,7 @@ def process_hits(input_csv, output_csv, check_image_credits_func):
                         "keyword_found": False,
                         "keywords_list": "",
                         "keyword_highlight": "",
-                        "error_status": f"Unexpected Error: {e}"
+                        "error_status": f"Unexpected Error: {str(e)[:200]}{'...' if len(str(e)) > 200 else ''}"
                     })
 
                 # Write result immediately after processing
@@ -271,18 +275,22 @@ def reprocess_error_rows(output_csv, check_image_credits_func):
                 # Error handling
                 error_msg = results.get("error", "")
                 if error_msg:
-                    if "404" in error_msg or "Not Found" in error_msg or "Page title indicates error" in error_msg:
-                        row["error_status"] = "404 - Page Not Found"
-                    elif "timeout" in error_msg.lower():
-                        row["error_status"] = "Timeout Error"
-                    elif "connection" in error_msg.lower():
-                        row["error_status"] = "Connection Error"
-                    elif "Browser session failed" in error_msg:
-                        row["error_status"] = "Browser Session Error"
-                    elif "Image not found" in error_msg:
-                        row["error_status"] = "Image Not Found"
-                    else:
-                        row["error_status"] = f"Error: {error_msg}"
+                        # Truncate error message to prevent CSV row overflow
+                        if len(str(error_msg)) > 200:
+                            error_msg = str(error_msg)[:200] + "..."
+                            
+                        if "404" in error_msg or "Not Found" in error_msg or "Page title indicates error" in error_msg:
+                            row["error_status"] = "404 - Page Not Found"
+                        elif "timeout" in error_msg.lower():
+                            row["error_status"] = "Timeout Error"
+                        elif "connection" in error_msg.lower():
+                            row["error_status"] = "Connection Error"
+                        elif "Browser session failed" in error_msg:
+                            row["error_status"] = "Browser Session Error"
+                        elif "Image not found" in error_msg:
+                            row["error_status"] = "Image Not Found"
+                        else:
+                            row["error_status"] = f"Error: {error_msg}"
                 else:
                     row["error_status"] = "Success"
 
@@ -411,18 +419,22 @@ def reprocess_no_keyword_hits(output_csv, check_image_credits_func):
                 # Error handling
                 error_msg = results.get("error", "")
                 if error_msg:
-                    if "404" in error_msg or "Not Found" in error_msg or "Page title indicates error" in error_msg:
-                        row["error_status"] = "404 - Page Not Found"
-                    elif "timeout" in error_msg.lower():
-                        row["error_status"] = "Timeout Error"
-                    elif "connection" in error_msg.lower():
-                        row["error_status"] = "Connection Error"
-                    elif "Browser session failed" in error_msg:
-                        row["error_status"] = "Browser Session Error"
-                    elif "Image not found" in error_msg:
-                        row["error_status"] = "Image Not Found"
-                    else:
-                        row["error_status"] = f"Error: {error_msg}"
+                        # Truncate error message to prevent CSV row overflow
+                        if len(str(error_msg)) > 200:
+                            error_msg = str(error_msg)[:200] + "..."
+                            
+                        if "404" in error_msg or "Not Found" in error_msg or "Page title indicates error" in error_msg:
+                            row["error_status"] = "404 - Page Not Found"
+                        elif "timeout" in error_msg.lower():
+                            row["error_status"] = "Timeout Error"
+                        elif "connection" in error_msg.lower():
+                            row["error_status"] = "Connection Error"
+                        elif "Browser session failed" in error_msg:
+                            row["error_status"] = "Browser Session Error"
+                        elif "Image not found" in error_msg:
+                            row["error_status"] = "Image Not Found"
+                        else:
+                            row["error_status"] = f"Error: {error_msg}"
                 else:
                     row["error_status"] = "Success (Reprocessed)"
 
@@ -528,18 +540,22 @@ def reprocess_all_successful_hits(output_csv, check_image_credits_func):
                 # Error handling
                 error_msg = results.get("error", "")
                 if error_msg:
-                    if "404" in error_msg or "Not Found" in error_msg or "Page title indicates error" in error_msg:
-                        row["error_status"] = "404 - Page Not Found"
-                    elif "timeout" in error_msg.lower():
-                        row["error_status"] = "Timeout Error"
-                    elif "connection" in error_msg.lower():
-                        row["error_status"] = "Connection Error"
-                    elif "Browser session failed" in error_msg:
-                        row["error_status"] = "Browser Session Error"
-                    elif "Image not found" in error_msg:
-                        row["error_status"] = "Image Not Found"
-                    else:
-                        row["error_status"] = f"Error: {error_msg}"
+                        # Truncate error message to prevent CSV row overflow
+                        if len(str(error_msg)) > 200:
+                            error_msg = str(error_msg)[:200] + "..."
+                            
+                        if "404" in error_msg or "Not Found" in error_msg or "Page title indicates error" in error_msg:
+                            row["error_status"] = "404 - Page Not Found"
+                        elif "timeout" in error_msg.lower():
+                            row["error_status"] = "Timeout Error"
+                        elif "connection" in error_msg.lower():
+                            row["error_status"] = "Connection Error"
+                        elif "Browser session failed" in error_msg:
+                            row["error_status"] = "Browser Session Error"
+                        elif "Image not found" in error_msg:
+                            row["error_status"] = "Image Not Found"
+                        else:
+                            row["error_status"] = f"Error: {error_msg}"
                 else:
                     row["error_status"] = "Success (Reprocessed)"
 

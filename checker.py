@@ -78,7 +78,7 @@ def save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, r
     
     # Create daily CSV filename with date
     today = datetime.now().strftime('%Y-%m-%d')
-    daily_csv = f"daily_claims_{today}.csv"
+    daily_csv = f"/app/data/daily_claims_{today}.csv"
     
     # Create the daily CSV file if it doesn't exist
     if not os.path.exists(daily_csv):
@@ -122,6 +122,10 @@ def save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, r
                 credit_keywords = results.get('credit_keywords', []) or []
                 credit_texts = results.get('credit_texts', []) or []
                 error_msg = results.get('error', '') or ''
+                
+                # Truncate error message to prevent CSV row overflow
+                if error_msg and len(str(error_msg)) > 200:
+                    error_msg = str(error_msg)[:200] + "..."
                 
                 row_data = {
                     'case_id': str(case_id) if case_id else '',
@@ -204,6 +208,10 @@ def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url,
                 credit_keywords = results.get('credit_keywords', []) or []
                 credit_texts = results.get('credit_texts', []) or []
                 error_msg = results.get('error', '') or ''
+                
+                # Truncate error message to prevent CSV row overflow
+                if error_msg and len(str(error_msg)) > 200:
+                    error_msg = str(error_msg)[:200] + "..."
                 
                 row_data = {
                     'case_id': str(case_id) if case_id else '',
