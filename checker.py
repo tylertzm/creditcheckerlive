@@ -6,6 +6,7 @@ import time
 import re
 import csv
 import os
+import signal
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -74,6 +75,16 @@ from library.upload_utils import (
 )
 
 
+class TimeoutError(Exception):
+    """Custom timeout exception"""
+    pass
+
+
+def timeout_handler(signum, frame):
+    """Handler for timeout signal"""
+    raise TimeoutError("Credit check timed out after 2 minutes")
+
+
 def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url, results):
     """Save case information to overall_checked_claims.csv"""
     try:
@@ -115,6 +126,41 @@ def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url,
         
     except Exception as e:
         print(f"❌ Error saving case to overall CSV: {e}")
+
+
+def check_image_credits_with_timeout(target_image_url, page_url, output_path=None, similarity_threshold=0.85, max_workers=10, case_url=None, hit_id=None, timeout_seconds=120):
+    """
+    Check for credit keywords with a timeout wrapper.
+    
+    Args:
+        timeout_seconds: Timeout in seconds (default 120 = 2 minutes)
+        All other args: Same as check_image_credits
+    
+    Returns:
+        dict: Results with potential timeout error
+    """
+    # Set up the timeout signal
+    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout_seconds)
+    
+    try:
+        print(f"⏰ Starting credit check with {timeout_seconds//60} minute timeout...")
+        return check_image_credits(target_image_url, page_url, output_path, similarity_threshold, max_workers, case_url, hit_id)
+    except TimeoutError:
+        error_msg = f"Credit check timed out after {timeout_seconds//60} minutes"
+        print(f"⏰ {error_msg}")
+        return {
+            'image_found': False,
+            'credit_keywords': [],
+            'credit_texts': [],
+            'screenshot_path': None,
+            'highlight_url': '',
+            'error': error_msg
+        }
+    finally:
+        # Cancel the alarm and restore the old handler
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
 
 
 def check_image_credits(target_image_url, page_url, output_path=None, similarity_threshold=0.85, max_workers=10, case_url=None, hit_id=None):
@@ -282,20 +328,28 @@ def check_image_credits(target_image_url, page_url, output_path=None, similarity
         
         # Handle upload and comment actions based on keyword results
         if case_url and hit_id:
+            case_number = case_url.split('/')[-1].split('?')[0] if case_url else "unknown"
             try:
                 if all_keywords:
                     # Keywords found - add a comment
-                    print("💬 Adding comment for found keywords...")
+                    print(f"💬 [CASE {case_number} HIT {hit_id}] Adding comment for found keywords...")
                     comment_text = "(creditchecker)potential keyword found"
                     # Navigate to the case URL first
                     driver.get(case_url)
                     time.sleep(2)
-                    add_internal_comment(driver, comment_text)
-                    print(f"✅ Comment added: {comment_text}")
+                    
+                    try:
+                        add_internal_comment(driver, comment_text)
+                        print(f"✅ [CASE {case_number} HIT {hit_id}] Comment added successfully: {comment_text}")
+                    except Exception as comment_error:
+                        print(f"❌ [CASE {case_number} HIT {hit_id}] Comment failed: {comment_error}")
+                        import traceback
+                        traceback.print_exc()
+                        
                 else:
                     # No keywords found - upload screenshot
                     if results['screenshot_path']:
-                        print("📤 Uploading screenshot for no keywords found...")
+                        print(f"📤 [CASE {case_number} HIT {hit_id}] Uploading screenshot for no keywords found...")
                         # Navigate to the case URL first
                         driver.get(case_url)
                         time.sleep(2)
@@ -303,35 +357,38 @@ def check_image_credits(target_image_url, page_url, output_path=None, similarity
                         # Prepare data for upload functions
                         page_hrefs = [page_url]
                         link_idx = 1
-                        case_number = case_url.split('/')[-1].split('?')[0] if case_url else "unknown"
                         hit_number = hit_id
                         
                         # Try usual upload method first
+                        upload_success = False
                         try:
+                            print(f"📤 [CASE {case_number} HIT {hit_id}] Trying usual upload method...")
                             upload_success = upload_screenshot_evidence_usual(
                                 driver, results['screenshot_path'], page_hrefs, 
                                 link_idx, case_number, hit_number
                             )
                             if upload_success:
-                                print("✅ Screenshot uploaded successfully (usual method)")
+                                print(f"✅ [CASE {case_number} HIT {hit_id}] Screenshot uploaded successfully (usual method)")
                             else:
                                 # Try new claims method as fallback
-                                print("⚠️ Usual upload failed, trying new claims method...")
+                                print(f"⚠️ [CASE {case_number} HIT {hit_id}] Usual upload failed, trying new claims method...")
                                 upload_success = upload_screenshot_evidence_new_claims(
                                     driver, results['screenshot_path'], page_hrefs,
                                     link_idx, case_number, hit_number
                                 )
                                 if upload_success:
-                                    print("✅ Screenshot uploaded successfully (new claims method)")
+                                    print(f"✅ [CASE {case_number} HIT {hit_id}] Screenshot uploaded successfully (new claims method)")
                                 else:
-                                    print("❌ Screenshot upload failed with both methods")
+                                    print(f"❌ [CASE {case_number} HIT {hit_id}] Screenshot upload failed with both methods")
                         except Exception as upload_error:
-                            print(f"❌ Screenshot upload failed: {upload_error}")
+                            print(f"❌ [CASE {case_number} HIT {hit_id}] Screenshot upload failed with exception: {upload_error}")
+                            import traceback
+                            traceback.print_exc()
                     else:
-                        print("⚠️ No screenshot available to upload")
+                        print(f"⚠️ [CASE {case_number} HIT {hit_id}] No screenshot available to upload")
                         
             except Exception as action_error:
-                print(f"⚠️ Error during upload/comment action: {action_error}")
+                print(f"⚠️ [CASE {case_number} HIT {hit_id}] Error during upload/comment action: {action_error}")
                 import traceback
                 traceback.print_exc()
         
@@ -377,7 +434,7 @@ def main():
     print("🔍 Credit Checker - Testing Mode")
     print("=" * 50)
     
-    results = check_image_credits(
+    results = check_image_credits_with_timeout(
         target_image_url=target_image_url,
         page_url=page_url,
         output_path=output_path,

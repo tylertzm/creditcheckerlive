@@ -141,7 +141,7 @@ def clean_csv_files(claim_type):
             log_message(f"ℹ️ {csv_file} does not exist (already clean)")
 
 def run_claims_scraper(claim_type, retry_count=0, max_retries=2):
-    """Run the claims scraper for specific claim type with retry logic"""
+    """Run the claims scraper for specific claim type with retry logic and 10-minute timeout"""
     log_message(f"🔄 Starting claims scraping ({claim_type} IDs) - Attempt {retry_count + 1}/{max_retries + 1}")
     
     # Clean CSV files before processing
@@ -149,8 +149,9 @@ def run_claims_scraper(claim_type, retry_count=0, max_retries=2):
     clean_csv_files(claim_type)
     
     try:
+        # Set 10-minute timeout for claims scraping (600 seconds)
         result = subprocess.run([sys.executable, "claims.py", claim_type], 
-                              capture_output=True, text=True)  # No timeout
+                              capture_output=True, text=True, timeout=600)
         
         if result.returncode == 0:
             log_message(f"✅ Claims scraping completed successfully ({claim_type} IDs)")
@@ -160,7 +161,7 @@ def run_claims_scraper(claim_type, retry_count=0, max_retries=2):
             return False
             
     except subprocess.TimeoutExpired:
-        log_message("❌ Claims scraping timed out (5 minute limit)")
+        log_message(f"⏰ Claims scraping timed out after 10 minutes ({claim_type} IDs) - continuing with next cycle")
         return False
     except Exception as e:
         log_message(f"❌ Error running claims scraper: {e}")
@@ -226,7 +227,7 @@ def check_claims_scraping_success(claim_type):
         return False
 
 def run_credit_checker(claim_type):
-    """Run the credit checker for specific claim type"""
+    """Run the credit checker for specific claim type with 10-minute timeout"""
     log_message(f"🎯 Starting scheduled credit checking ({claim_type} IDs)...")
     
     # First check if claims scraping was successful
@@ -235,8 +236,9 @@ def run_credit_checker(claim_type):
         return
     
     try:
+        # Set 10-minute timeout for credit checking (600 seconds)
         result = subprocess.run([sys.executable, "control.py", claim_type], 
-                              capture_output=True, text=True)  # No timeout
+                              capture_output=True, text=True, timeout=600)
         
         if result.returncode == 0:
             log_message(f"✅ Credit checking completed successfully ({claim_type} IDs)")
@@ -246,7 +248,7 @@ def run_credit_checker(claim_type):
             log_message(f"❌ Credit checking failed: {result.stderr}")
             
     except subprocess.TimeoutExpired:
-        log_message("❌ Credit checking timed out (10 minute limit)")
+        log_message(f"⏰ Credit checking timed out after 10 minutes ({claim_type} IDs) - continuing with next cycle")
     except Exception as e:
         log_message(f"❌ Error running credit checker: {e}")
 
@@ -268,10 +270,14 @@ def check_files_exist():
 def main():
     """Main scheduler function"""
     log_message("🚀 Credit Check Scheduler Starting...")
-    log_message("📅 Schedule:")
-    log_message("   - Claims scraping: Even IDs at :40, Odd IDs at :45")
-    log_message("   - Credit checking: Even IDs at :00, Odd IDs at :05")
-    log_message("🎯 Running both even and odd claim processing simultaneously")
+    log_message("📅 New Schedule (10-minute cycles):")
+    log_message("   - :00-:10 - Claims scraping (even and odd)")
+    log_message("   - :10-:20 - Credit checking (even and odd)")
+    log_message("   - :20-:30 - Claims scraping (even and odd)")
+    log_message("   - :30-:40 - Credit checking (even and odd)")
+    log_message("   - :40-:50 - Claims scraping (even and odd)")
+    log_message("   - :50-:00 - Credit checking (even and odd)")
+    log_message("🎯 Alternating scraping and checking every 10 minutes")
     
     # Check prerequisites
     if not check_files_exist():
@@ -281,17 +287,26 @@ def main():
     # Ensure output directory exists
     os.makedirs("output", exist_ok=True)
     
-    # Schedule the jobs - run both even and odd processes separately
+    # Schedule jobs every 10 minutes alternating between scraping and checking
+    # Claims scraping: :00, :20, :40
+    schedule.every().hour.at(":00").do(run_claims_scraper_with_retry, "even")
+    schedule.every().hour.at(":00").do(run_claims_scraper_with_retry, "odd")
+    schedule.every().hour.at(":20").do(run_claims_scraper_with_retry, "even")
+    schedule.every().hour.at(":20").do(run_claims_scraper_with_retry, "odd")
     schedule.every().hour.at(":40").do(run_claims_scraper_with_retry, "even")
-    schedule.every().hour.at(":45").do(run_claims_scraper_with_retry, "odd")
-    schedule.every().hour.at(":00").do(run_credit_checker, "even")
-    schedule.every().hour.at(":05").do(run_credit_checker, "odd")
+    schedule.every().hour.at(":40").do(run_claims_scraper_with_retry, "odd")
     
-    # Run initial check to see what's next
-    next_claims = schedule.next_run()
-    next_credits = schedule.get_jobs()[1].next_run
-    log_message(f"⏰ Next claims scraping: {next_claims}")
-    log_message(f"⏰ Next credit checking: {next_credits}")
+    # Credit checking: :10, :30, :50
+    schedule.every().hour.at(":10").do(run_credit_checker, "even")
+    schedule.every().hour.at(":10").do(run_credit_checker, "odd")
+    schedule.every().hour.at(":30").do(run_credit_checker, "even")
+    schedule.every().hour.at(":30").do(run_credit_checker, "odd")
+    schedule.every().hour.at(":50").do(run_credit_checker, "even")
+    schedule.every().hour.at(":50").do(run_credit_checker, "odd")
+    
+    # Show next scheduled jobs
+    next_run = schedule.next_run()
+    log_message(f"⏰ Next scheduled job: {next_run}")
     
     log_message("🔄 Scheduler is now running. Press Ctrl+C to stop.")
     

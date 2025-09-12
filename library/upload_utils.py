@@ -44,16 +44,15 @@ def click_button(driver, action, element=None):
         element: Optional WebElement to click directly
     """
     if element is not None:
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element)).click()
-        print("[INFO] ✅ Clicked provided element.")
+        element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element))
+        safe_click(driver, element, "provided element")
         return
 
     if action == "upload evidences":
         upload_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, '//a[normalize-space(text())="upload evidences"]'))
         )
-        upload_button.click()
-        print("[INFO] ✅ Clicked 'upload evidences' button.")
+        safe_click(driver, upload_button, "upload evidences button")
 
     elif action == "manual-screenshot-page":
         dropdown_element = WebDriverWait(driver, 10).until(
@@ -68,11 +67,10 @@ def click_button(driver, action, element=None):
             EC.presence_of_element_located((By.XPATH, '//i[contains(@class, "glyphicon-open")]'))
         )
         parent_element = icon_element.find_element(By.XPATH, '..')
-        WebDriverWait(driver, 10).until(
+        parent_element = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable(parent_element)
         )
-        parent_element.click()
-        print("[INFO] ✅ Clicked the 'file upload' button.")
+        safe_click(driver, parent_element, "file upload button")
 
     elif action == "submit evidence":
         submit_button = WebDriverWait(driver, 10).until(
@@ -81,8 +79,7 @@ def click_button(driver, action, element=None):
                 '//span[normalize-space(text())="Submit"]/parent::*'
             ))
         )
-        submit_button.click()
-        print("[INFO] ✅ Clicked the 'Submit' button.")
+        safe_click(driver, submit_button, "Submit button")
 
     else:
         raise ValueError(f"[ERROR] ❌ Unknown action '{action}'.")
@@ -269,7 +266,8 @@ def upload_screenshot_evidence_new_claims(driver, screenshot_path, page_hrefs, l
             file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')
         except:
             # If no file input found, click "Add files" button and try again
-            driver.find_element(By.CSS_SELECTOR,'#claim_documents_form > button.btn.btn-primary.pull-right.btn-xs.fileinput-button.dz-clickable > span').click()
+            add_files_button = driver.find_element(By.CSS_SELECTOR,'#claim_documents_form > button.btn.btn-primary.pull-right.btn-xs.fileinput-button.dz-clickable > span')
+            safe_click(driver, add_files_button, "Add files button")
             time.sleep(1.2)
             try:
                 file_input = driver.find_element(By.CSS_SELECTOR, 'input[type="file"]')

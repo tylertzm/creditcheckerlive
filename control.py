@@ -5,7 +5,7 @@ Control module for processing CSV files
 import os
 import sys
 from library import process_hits
-from checker import check_image_credits
+from checker import check_image_credits_with_timeout
 
 # Parse command line arguments for even/odd filtering
 CLAIM_TYPE = "even"  # Default to even
@@ -33,7 +33,7 @@ os.makedirs("output", exist_ok=True)
 def main():
     """Main function for processing hits"""
     print("Processing hits from cases.csv...")
-    process_hits(INPUT_CSV, OUTPUT_CSV, check_image_credits)
+    process_hits(INPUT_CSV, OUTPUT_CSV, check_image_credits_with_timeout)
     
     # Also update the overall_checked_claims.csv
     print("Updating overall_checked_claims.csv...")
