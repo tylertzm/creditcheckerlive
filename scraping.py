@@ -97,14 +97,19 @@ def setup_chrome_driver():
     else:
         print(f"[WARN] ⚠️ No extensions found to load")
     
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    # Use the unified driver setup instead of ChromeDriverManager
+    from library.unified_driver_utils import setup_driver as unified_setup
     
-    # Give extensions time to load
+    # Create Chrome options for the unified setup
+    extra_args = []
     if extensions_to_load:
+        extensions_path = ",".join(extensions_to_load)
+        extra_args.append(f"--load-extension={extensions_path}")
         print("[INFO] ⏳ Waiting for extensions to load...")
         time.sleep(5)
+    
+    # Use unified driver setup
+    driver = unified_setup(headless=True, extra_chrome_args=extra_args)
     
     return driver
 

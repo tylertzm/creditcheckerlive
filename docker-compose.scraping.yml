@@ -16,7 +16,7 @@ services:
       # Mount claims.csv to persist results
       - ./claims.csv:/app/claims.csv
     # Override the default command to pass arguments
-    command: ["/app/start.sh", "5"]  # Change the number as needed
+    command: ["/app/start.sh", "10"]  # Process 10 claims
     # Restart policy
     restart: "no"
     # Resource limits (optional)
