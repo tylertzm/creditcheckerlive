@@ -66,6 +66,13 @@ from library import (
     check_whole_page_html_for_credits
 )
 
+# Import upload and comment functions
+from library.upload_utils import (
+    add_internal_comment,
+    upload_screenshot_evidence_usual,
+    upload_screenshot_evidence_new_claims
+)
+
 
 def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url, results):
     """Save case information to overall_checked_claims.csv"""
@@ -272,6 +279,61 @@ def check_image_credits(target_image_url, page_url, output_path=None, similarity
                 print(f"   • {keyword}")
         else:
             print("❌ No credit keywords found")
+        
+        # Handle upload and comment actions based on keyword results
+        if case_url and hit_id:
+            try:
+                if all_keywords:
+                    # Keywords found - add a comment
+                    print("💬 Adding comment for found keywords...")
+                    comment_text = "(creditchecker)potential keyword found"
+                    # Navigate to the case URL first
+                    driver.get(case_url)
+                    time.sleep(2)
+                    add_internal_comment(driver, comment_text)
+                    print(f"✅ Comment added: {comment_text}")
+                else:
+                    # No keywords found - upload screenshot
+                    if results['screenshot_path']:
+                        print("📤 Uploading screenshot for no keywords found...")
+                        # Navigate to the case URL first
+                        driver.get(case_url)
+                        time.sleep(2)
+                        
+                        # Prepare data for upload functions
+                        page_hrefs = [page_url]
+                        link_idx = 1
+                        case_number = case_url.split('/')[-1].split('?')[0] if case_url else "unknown"
+                        hit_number = hit_id
+                        
+                        # Try usual upload method first
+                        try:
+                            upload_success = upload_screenshot_evidence_usual(
+                                driver, results['screenshot_path'], page_hrefs, 
+                                link_idx, case_number, hit_number
+                            )
+                            if upload_success:
+                                print("✅ Screenshot uploaded successfully (usual method)")
+                            else:
+                                # Try new claims method as fallback
+                                print("⚠️ Usual upload failed, trying new claims method...")
+                                upload_success = upload_screenshot_evidence_new_claims(
+                                    driver, results['screenshot_path'], page_hrefs,
+                                    link_idx, case_number, hit_number
+                                )
+                                if upload_success:
+                                    print("✅ Screenshot uploaded successfully (new claims method)")
+                                else:
+                                    print("❌ Screenshot upload failed with both methods")
+                        except Exception as upload_error:
+                            print(f"❌ Screenshot upload failed: {upload_error}")
+                    else:
+                        print("⚠️ No screenshot available to upload")
+                        
+            except Exception as action_error:
+                print(f"⚠️ Error during upload/comment action: {action_error}")
+                import traceback
+                traceback.print_exc()
         
         print("✅ Credit check completed successfully")
         
