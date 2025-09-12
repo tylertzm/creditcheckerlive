@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  credit-checker-scraping:
+    build: .
+    container_name: credit-checker-scraping
+    environment:
+      - DISPLAY=:99
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount the output directory to persist results
+      - ./output:/app/output
+      - ./logs:/app/logs
+      # Mount the overall_checked_claims.csv to persist processed claims
+      - ./overall_checked_claims.csv:/app/overall_checked_claims.csv
+      # Mount claims.csv to persist results
+      - ./claims.csv:/app/claims.csv
+    # Override the default command to pass arguments
+    command: ["/app/start.sh", "5"]  # Change the number as needed
+    # Restart policy
+    restart: "no"
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    # Security options for Chrome
+    security_opt:
+      - seccomp:unconfined
+    # Shared memory for Chrome
+    shm_size: 2gb
