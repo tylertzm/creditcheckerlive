@@ -282,6 +282,9 @@ def setup_driver(headless=True, extra_chrome_args=None):
         # Set reasonable implicit wait
         driver.implicitly_wait(10)
         
+        # Set page load timeout to 5 minutes (300 seconds)
+        driver.set_page_load_timeout(300)
+        
         # Anti-detection measures
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
