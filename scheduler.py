@@ -150,7 +150,7 @@ def run_claims_scraper(claim_type, retry_count=0, max_retries=2):
     
     try:
         result = subprocess.run([sys.executable, "claims.py", claim_type], 
-                              capture_output=True, text=True, timeout=300)  # 5 minute timeout
+                              capture_output=True, text=True)  # No timeout
         
         if result.returncode == 0:
             log_message(f"✅ Claims scraping completed successfully ({claim_type} IDs)")
@@ -236,7 +236,7 @@ def run_credit_checker(claim_type):
     
     try:
         result = subprocess.run([sys.executable, "control.py", claim_type], 
-                              capture_output=True, text=True, timeout=600)  # 10 minute timeout
+                              capture_output=True, text=True)  # No timeout
         
         if result.returncode == 0:
             log_message(f"✅ Credit checking completed successfully ({claim_type} IDs)")
@@ -269,7 +269,7 @@ def main():
     """Main scheduler function"""
     log_message("🚀 Credit Check Scheduler Starting...")
     log_message("📅 Schedule:")
-    log_message("   - Claims scraping: Even IDs at :30, Odd IDs at :35")
+    log_message("   - Claims scraping: Even IDs at :40, Odd IDs at :45")
     log_message("   - Credit checking: Even IDs at :00, Odd IDs at :05")
     log_message("🎯 Running both even and odd claim processing simultaneously")
     
@@ -282,8 +282,8 @@ def main():
     os.makedirs("output", exist_ok=True)
     
     # Schedule the jobs - run both even and odd processes separately
-    schedule.every().hour.at(":30").do(run_claims_scraper_with_retry, "even")
-    schedule.every().hour.at(":35").do(run_claims_scraper_with_retry, "odd")
+    schedule.every().hour.at(":40").do(run_claims_scraper_with_retry, "even")
+    schedule.every().hour.at(":45").do(run_claims_scraper_with_retry, "odd")
     schedule.every().hour.at(":00").do(run_credit_checker, "even")
     schedule.every().hour.at(":05").do(run_credit_checker, "odd")
     
