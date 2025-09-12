@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
+from .unified_driver_utils import setup_driver, create_chrome_options
 from PIL import Image, ImageDraw, ImageFont
 from .keywords import CREDIT_KEYWORDS
 from .credit_checker import matches_keyword_with_word_boundary
@@ -28,49 +28,28 @@ def handle_initial_page_setup(driver):
 
 
 def setup_driver():
-    """Setup Chrome driver with optimized options"""
-    chrome_options = Options()
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-    chrome_options.add_argument("--window-size=1920,1080")
+    """Setup Chrome driver with unified configuration"""
+    print("🔧 Setting up Chrome WebDriver...")
     
-    # Docker-friendly and stability options
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--remote-debugging-port=9222")
-    
-    # Additional stability options
-    chrome_options.add_argument("--disable-web-security")
-    chrome_options.add_argument("--disable-features=VizDisplayCompositor")
-    chrome_options.add_argument("--disable-background-timer-throttling")
-    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
-    chrome_options.add_argument("--disable-renderer-backgrounding")
-    chrome_options.add_argument("--no-first-run")
-    chrome_options.add_argument("--no-default-browser-check")
-    chrome_options.add_argument("--disable-default-apps")
-    
-    # Memory management
-    chrome_options.add_argument("--memory-pressure-off")
-    chrome_options.add_argument("--max_old_space_size=4096")
-    
-    # Add unpacked extensions if they exist
+    # Load extensions if available
     extensions_loaded = []
+    extra_args = []
     
     # Load uBlock Origin unpacked extension
     if os.path.exists("ublock_unpacked"):
-        chrome_options.add_argument("--load-extension=ublock_unpacked")
+        extra_args.append("--load-extension=ublock_unpacked")
         extensions_loaded.append("uBlock Origin")
         print("🔧 Loading uBlock Origin unpacked extension")
     else:
         print("⚠️ uBlock unpacked extension not found (ublock_unpacked directory missing)")
     
-    # Load Cookies unpacked extension
+        # Load Cookies unpacked extension
     if os.path.exists("cookies_unpacked"):
-        chrome_options.add_argument("--load-extension=cookies_unpacked")
+        if extra_args:
+            # Extend existing extension argument
+            extra_args[0] += ",cookies_unpacked"
+        else:
+            extra_args.append("--load-extension=cookies_unpacked")
         extensions_loaded.append("Cookies Extension")
         print("🔧 Loading Cookies unpacked extension")
     else:
@@ -81,101 +60,63 @@ def setup_driver():
     else:
         print("⚠️ No unpacked extensions found")
     
-    # Use system chromedriver (more reliable in Docker)
+    # Use unified driver setup with extensions
     try:
-        # Try system chromedriver first (installed via package manager or Docker)
-        # Check multiple possible locations in order of preference
-        chromedriver_paths = [
-            "/usr/local/bin/chromedriver",  # Docker installed location (symlink)
-            "/usr/bin/chromedriver",        # Package manager location (primary)
-            "/usr/bin/chromium-driver",     # Chromium driver location (backup)
-        ]
+        from .unified_driver_utils import setup_driver as unified_setup
         
-        driver = None
-        for chromedriver_path in chromedriver_paths:
-            if os.path.exists(chromedriver_path):
-                try:
-                    print(f"🔍 Trying chromedriver at: {chromedriver_path}")
-                    service = Service(chromedriver_path)
-                    driver = webdriver.Chrome(service=service, options=chrome_options)
-                    print(f"✅ Successfully using chromedriver from: {chromedriver_path}")
-                    break
-                except Exception as path_error:
-                    print(f"❌ Failed to use chromedriver from {chromedriver_path}: {path_error}")
-                    continue
-            else:
-                print(f"⚠️ Chromedriver not found at: {chromedriver_path}")
-        
-        if driver is None:
-            print("❌ No working system chromedriver found")
-            print("Available chromedriver paths checked:")
-            for path in chromedriver_paths:
-                exists = "✅" if os.path.exists(path) else "❌"
-                print(f"  {exists} {path}")
-            raise Exception("No system chromedriver found in standard locations")
-            
-    except Exception as e:
-        print(f"❌ System chromedriver setup failed: {e}")
-        print("🔧 To fix this in Docker, ensure ChromeDriver is properly installed:")
-        print("   apt-get install -y google-chrome-stable chromium-driver")
-        print("   ln -sf /usr/bin/chromedriver /usr/local/bin/chromedriver")
-        # Don't fallback to webdriver-manager in Docker as it causes architecture issues
-        if os.path.exists("/usr/bin/chromedriver") or os.path.exists("/usr/local/bin/chromedriver"):
-            print("💡 ChromeDriver files exist but failed to load. This might be a permissions or architecture issue.")
-        raise Exception(f"Failed to setup ChromeDriver: {e}")
-    
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    
-    # Verify extensions are loaded
-    try:
+        # Enable JavaScript for extensions compatibility
         if extensions_loaded:
-            current_url = driver.current_url
-            driver.get("chrome://extensions/")
-            time.sleep(1)
-            
-            # Get extension info
-            extensions_info = driver.execute_script("""
-                var extensions = [];
-                var manager = document.querySelector('extensions-manager');
-                if (manager && manager.shadowRoot) {
-                    var items = manager.shadowRoot.querySelectorAll('extensions-item');
-                    for (var i = 0; i < items.length; i++) {
-                        var item = items[i];
-                        if (item.shadowRoot) {
-                            var name = item.shadowRoot.querySelector('#name');
-                            var toggle = item.shadowRoot.querySelector('#enableToggle');
-                            if (name && toggle) {
-                                extensions.push({
-                                    name: name.textContent.trim(),
-                                    enabled: toggle.checked
-                                });
-                            }
-                        }
-                    }
-                }
-                return extensions;
-            """)
-            
-            if extensions_info:
-                print("🔧 Loaded extensions:")
-                for ext in extensions_info:
-                    status = "✅ ENABLED" if ext['enabled'] else "❌ DISABLED"
-                    print(f"   {ext['name']}: {status}")
-            else:
-                print("⚠️ Could not verify extension status")
+            print("[INFO] Enabling JavaScript for extension compatibility")
+            extra_args.extend([
+                "--disable-web-security",
+                "--disable-features=VizDisplayCompositor",
+                "--remote-debugging-port=9222"
+            ])
+        
+        driver = unified_setup(
+            headless=True, 
+            extra_chrome_args=extra_args
+        )        # Verify extensions are loaded
+        if extensions_loaded:
+            try:
+                current_url = driver.current_url
+                driver.get("chrome://extensions/")
+                time.sleep(2)
+                print(f"🔧 Extensions verification completed")
                 
-            # Navigate back if we changed URL
-            if current_url and current_url != "data:,":
-                driver.get(current_url)
+                # Return to original page or go to blank
+                if current_url and current_url != "data:,":
+                    driver.get(current_url)
+                else:
+                    driver.get("about:blank")
+                    
+            except Exception as ext_error:
+                print(f"⚠️ Extension verification failed: {ext_error}")
+            try:
+                current_url = driver.current_url
+                driver.get("chrome://extensions/")
+                time.sleep(2)
+                print(f"🔧 Extensions verification completed")
                 
+                # Return to original page or go to blank
+                if current_url and current_url != "data:,":
+                    driver.get(current_url)
+                else:
+                    driver.get("about:blank")
+                    
+            except Exception as ext_error:
+                print(f"⚠️ Extension verification failed: {ext_error}")
+        
+        print("✅ Chrome WebDriver setup successful!")
+        return driver
+        
     except Exception as e:
-        print(f"⚠️ Could not verify extensions: {e}")
-    
-    # Set additional timeouts for stability
-    driver.implicitly_wait(10)
-    driver.set_script_timeout(30)
-    
-    return driver
+        error_msg = f"Failed to setup Chrome WebDriver: {e}"
+        print(f"❌ {error_msg}")
+        raise Exception(error_msg)
+        error_msg = f"Failed to setup Chrome WebDriver: {e}"
+        print(f"❌ {error_msg}")
+        raise Exception(error_msg)
 
 
 def create_highlighted_credit_link(keywords, found=True, page_url=None, text_content=None):
@@ -183,18 +124,27 @@ def create_highlighted_credit_link(keywords, found=True, page_url=None, text_con
     if found and keywords and page_url:
         # Create Chrome text highlighting URL using the first keyword found
         first_keyword = keywords[0] if keywords else "Getty Images"
-        # URL encode the keyword for the highlight link
-        encoded_keyword = first_keyword.replace(" ", "%20")
-        highlight_url = f"{page_url}#:~:text={encoded_keyword}"
-        return highlight_url
+        highlighted_url = f"{page_url}#:~:text={first_keyword}"
+        return highlighted_url
     else:
-        # Return empty string for no credits or analysis pending
-        return ""
+        return page_url if page_url else "#"
 
 
 def take_full_screenshot_with_timestamp(driver, image_element=None, output_path=None, case_url=None, hit_id=None):
     """Take a full screenshot of the page with timestamp and optional image highlighting"""
     try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if not output_path:
+            output_path = f"screenshot_{timestamp}.png"
+        
+        # Take screenshot
+        driver.save_screenshot(output_path)
+        print(f"📸 Screenshot saved: {output_path}")
+        return output_path
+        
+    except Exception as e:
+        print(f"❌ Screenshot failed: {e}")
+        return None
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if output_path is None:
             # Create filename with case URL and hit ID if provided
@@ -404,12 +354,13 @@ def take_full_screenshot_with_timestamp(driver, image_element=None, output_path=
         return None
 
 
-def wait_for_images_to_load(driver, timeout=10):
+def wait_for_images_to_load(driver):
     """Wait for all images on the page to finish loading"""
     try:
         print("⏳ Waiting for images to load...")
-        WebDriverWait(driver, timeout).until(
-            lambda d: d.execute_script("""
+        # Use a reasonable wait without strict timeout
+        for attempt in range(30):  # 30 seconds max
+            all_loaded = driver.execute_script("""
                 var images = document.querySelectorAll('img');
                 for (var i = 0; i < images.length; i++) {
                     if (!images[i].complete || images[i].naturalHeight === 0) {
@@ -418,12 +369,13 @@ def wait_for_images_to_load(driver, timeout=10):
                 }
                 return true;
             """)
-        )
-        print("✅ All images loaded successfully")
-    except TimeoutException:
-        print("⚠️ Timeout waiting for images to load, proceeding anyway...")
+            if all_loaded:
+                print("✅ All images loaded")
+                return
+            time.sleep(1)
+        print("⚠️ Image loading timed out, continuing anyway")
     except Exception as e:
-        print(f"⚠️ Error waiting for images: {e}")
+        print(f"⚠️ Image loading check failed: {e}")
 
 
 def check_for_404_or_page_errors(driver):
@@ -455,14 +407,13 @@ def check_for_404_or_page_errors(driver):
         return None
 
 
-def quick_requests_based_credit_check(page_url, timeout=10):
+def quick_requests_based_credit_check(page_url):
     """
     Quick preliminary check using requests to fetch page HTML and search for credit keywords.
     This is much faster than launching a browser and can help identify potential credits early.
     
     Args:
         page_url (str): URL of the webpage to check
-        timeout (int): Request timeout in seconds
     
     Returns:
         list: Found credit keywords (empty list if none found or if request fails)
@@ -483,7 +434,7 @@ def quick_requests_based_credit_check(page_url, timeout=10):
         }
         
         # Fetch the page content
-        response = requests.get(page_url, headers=headers, timeout=timeout)
+        response = requests.get(page_url, headers=headers)
         response.raise_for_status()
         
         # Get the page content

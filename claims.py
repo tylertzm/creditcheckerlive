@@ -23,7 +23,7 @@ OUTPUT_CSV = f"cases_{CLAIM_TYPE}.csv"  # Output: new cases to process (even/odd
 
 # Scraping limits
 MAX_HITS_PER_CLAIM = 3  # Skip claims with 6 or more hits (set to 5 to skip claims with 5+ hits)
-MAX_CASES_TO_SCRAPE = 90  # Maximum number of cases to process
+MAX_CASES_TO_SCRAPE = 300  # Maximum number of cases to process
 MAX_PAGES_TO_CHECK = 255 # Maximum number of pages to check for claims
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)

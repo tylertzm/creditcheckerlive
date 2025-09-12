@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
+from library.unified_driver_utils import setup_driver
 from PIL import Image, ImageDraw, ImageFont
 import requests
 import numpy as np
@@ -57,7 +57,7 @@ from library import (
     calculate_image_similarity_batch, calculate_image_similarity,
     find_image_by_similarity, scroll_and_search_image,
     # Web utilities
-    handle_initial_page_setup, setup_driver, create_highlighted_credit_link,
+    handle_initial_page_setup, create_highlighted_credit_link,
     take_full_screenshot_with_timestamp, wait_for_images_to_load,
     check_for_404_or_page_errors, quick_requests_based_credit_check,
     # Credit checking

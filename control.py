@@ -24,7 +24,7 @@ OVERALL_CSV = "output/overall_checked_claims.csv"  # Overall results (shared)
 
 # Processing limits (set to None for no limit)
 MAX_HITS_TO_PROCESS = 100 # Maximum number of hits to process (None = no limit)
-BATCH_SIZE = 10  # Process hits in batches of this size (for memory management)
+BATCH_SIZE = 100  # Process hits in batches of this size (for memory management)
 
 # Ensure output directory exists
 os.makedirs("output", exist_ok=True)
