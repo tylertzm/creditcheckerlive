@@ -1,13 +1,14 @@
 version: '3.8'
 
 services:
-  credit-checker-scraping:
+  credit-checker-odd:
     build: .
-    container_name: credit-checker-scraping
+    container_name: credit-checker-odd
     environment:
       - DISPLAY=:99
       - PYTHONUNBUFFERED=1
-      - BATCH_SIZE=10  # Number of claims to process per cycle
+      - BATCH_SIZE=5  # Number of claims to process per cycle
+      - FILTER_TYPE=odd
     volumes:
       # Mount the output directory to persist results
       - ./output:/app/output

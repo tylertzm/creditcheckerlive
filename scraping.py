@@ -25,28 +25,53 @@ MAX_HITS_PER_CLAIM = 3
 OVERALL_CSV = "overall_checked_claims.csv"
 
 def load_processed_claims():
-    """Load already processed claims from overall_checked_claims.csv"""
+    """Load already processed claims from overall_checked_claims.csv with file locking"""
+    import fcntl
+    import time
+    
     processed_claims = set()
     
     if not os.path.exists(OVERALL_CSV):
         print(f"[INFO] No {OVERALL_CSV} found, will process all claims")
         return processed_claims
     
-    try:
-        with open(OVERALL_CSV, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                case_id = row.get('case_id', '').strip()
-                hit_number = row.get('hit_number', '').strip()
-                if case_id and hit_number:
-                    processed_claims.add(f"{case_id}_{hit_number}")
-        
-        print(f"[INFO] Loaded {len(processed_claims)} already processed claims from {OVERALL_CSV}")
-        return processed_claims
-        
-    except Exception as e:
-        print(f"[WARN] Error loading processed claims: {e}")
-        return processed_claims
+    # Retry mechanism for file locking
+    max_retries = 5
+    retry_delay = 0.1
+    
+    for attempt in range(max_retries):
+        try:
+            # Create a lock file path
+            lock_file = f"{OVERALL_CSV}.lock"
+            
+            # Try to acquire shared lock for reading
+            with open(lock_file, 'w') as lock_f:
+                fcntl.flock(lock_f.fileno(), fcntl.LOCK_SH)  # Shared lock
+                
+                with open(OVERALL_CSV, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        case_id = row.get('case_id', '').strip()
+                        hit_number = row.get('hit_number', '').strip()
+                        if case_id and hit_number:
+                            processed_claims.add(f"{case_id}_{hit_number}")
+                
+                print(f"[INFO] Loaded {len(processed_claims)} already processed claims from {OVERALL_CSV}")
+                return processed_claims
+                
+        except (IOError, OSError) as e:
+            if attempt < max_retries - 1:
+                print(f"[WARN] File locked, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                print(f"[WARN] Could not acquire lock after {max_retries} attempts: {e}")
+                return processed_claims
+        except Exception as e:
+            print(f"[WARN] Error loading processed claims: {e}")
+            return processed_claims
+    
+    return processed_claims
 
 # Get number of claims from command line argument
 if len(sys.argv) < 2:
@@ -146,7 +171,7 @@ def login(driver):
     time.sleep(3)
     print("[INFO] Login completed, proceeding to claims...")
 
-def get_qualifying_cases(driver, target_count):
+def get_qualifying_cases(driver, target_count, filter_type=None):
     """Get qualifying cases from the review list"""
     qualifying_cases = []
     current_page = 1
@@ -185,6 +210,17 @@ def get_qualifying_cases(driver, target_count):
                         claim_url = f'https://app.copytrack.com{claim_url}'
                     
                     case_id = extract_case_id_from_url(claim_url)
+                    
+                    # Apply even/odd filtering if specified
+                    if filter_type:
+                        case_id_num = int(case_id) if case_id.isdigit() else 0
+                        if filter_type == "even" and case_id_num % 2 != 0:
+                            print(f"[SKIP] Skipping odd case {case_id} (even filter)")
+                            continue
+                        elif filter_type == "odd" and case_id_num % 2 == 0:
+                            print(f"[SKIP] Skipping even case {case_id} (odd filter)")
+                            continue
+                    
                     print(f"[INFO] Found qualifying case: {case_id} with {hit_count} hits")
                     qualifying_cases.append(claim_url)
                     
@@ -343,6 +379,17 @@ def process_case(driver, claim_url, case_id, processed_claims):
 
 def main():
     """Main execution function"""
+    import sys
+    
+    # Get filter type from command line argument
+    filter_type = None
+    if len(sys.argv) > 2:
+        filter_type = sys.argv[2].lower()
+        if filter_type not in ["even", "odd"]:
+            print(f"[ERROR] Invalid filter type: {filter_type}. Use 'even' or 'odd'")
+            sys.exit(1)
+        print(f"[INFO] Filtering for {filter_type} case IDs")
+    
     print(f"[INFO] Starting scraping of {CLAIMS_TO_SCRAPE} claims")
     
     # Load already processed claims
@@ -353,7 +400,7 @@ def main():
     try:
         login(driver)
         
-        qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE)
+        qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE, filter_type)
         
         print(f"[INFO] Found {len(qualifying_cases)} qualifying cases to process")
         

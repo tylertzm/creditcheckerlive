@@ -70,46 +70,79 @@ from library import (
 
 
 def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url, results):
-    """Save case information to overall_checked_claims.csv"""
+    """Save case information to overall_checked_claims.csv with file locking"""
+    import fcntl
+    import tempfile
+    import shutil
+    
     try:
-        # Check if file exists to determine if we need headers
-        file_exists = os.path.exists(OVERALL_CSV)
+        # Create a lock file path
+        lock_file = f"{OVERALL_CSV}.lock"
         
-        with open(OVERALL_CSV, 'a', newline='', encoding='utf-8') as f:
-            fieldnames = [
-                'case_id', 'case_url', 'hit_number', 'page_url', 'image_url',
-                'image_found', 'keyword_found', 'keywords_list', 'keyword_highlight', 
-                'error_status', 'screenshot_path', 'processed_at'
-            ]
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+        # Use file locking to prevent concurrent writes
+        with open(lock_file, 'w') as lock_f:
+            fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX)  # Exclusive lock
             
-            # Write header if file is new
-            if not file_exists:
-                writer.writeheader()
-            
-            # Prepare row data
-            row_data = {
-                'case_id': case_id,
-                'case_url': case_url,
-                'hit_number': hit_number,
-                'page_url': page_url,
-                'image_url': image_url,
-                'image_found': results.get('image_found', False),
-                'keyword_found': bool(results.get('credit_keywords')),
-                'keywords_list': ', '.join(results.get('credit_keywords', [])),
-                'keyword_highlight': results.get('highlight_url', ''),
-                'error_status': results.get('error', 'Success') if not results.get('error') else results.get('error'),
-                'screenshot_path': results.get('screenshot_path', ''),
-                'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-            
-            writer.writerow(row_data)
-            f.flush()
-            
-        print(f"💾 Case {case_id} hit {hit_number} saved to {OVERALL_CSV}")
-        
+            try:
+                # Check if file exists to determine if we need headers
+                file_exists = os.path.exists(OVERALL_CSV)
+                
+                # Read existing data
+                existing_data = []
+                if file_exists:
+                    with open(OVERALL_CSV, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        existing_data = list(reader)
+                
+                # Prepare new row data
+                fieldnames = [
+                    'case_id', 'case_url', 'hit_number', 'page_url', 'image_url',
+                    'image_found', 'keyword_found', 'keywords_list', 'keyword_highlight', 
+                    'error_status', 'screenshot_path', 'processed_at'
+                ]
+                
+                row_data = {
+                    'case_id': case_id,
+                    'case_url': case_url,
+                    'hit_number': hit_number,
+                    'page_url': page_url,
+                    'image_url': image_url,
+                    'image_found': results.get('image_found', False),
+                    'keyword_found': bool(results.get('credit_keywords')),
+                    'keywords_list': ', '.join(results.get('credit_keywords', [])),
+                    'keyword_highlight': results.get('highlight_url', ''),
+                    'error_status': results.get('error', 'Success') if not results.get('error') else results.get('error'),
+                    'screenshot_path': results.get('screenshot_path', ''),
+                    'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                
+                # Add new row to existing data
+                existing_data.append(row_data)
+                
+                # Write to temporary file first (atomic operation)
+                temp_file = f"{OVERALL_CSV}.tmp"
+                with open(temp_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(existing_data)
+                    f.flush()
+                    os.fsync(f.fileno())  # Force write to disk
+                
+                # Atomically replace the original file
+                shutil.move(temp_file, OVERALL_CSV)
+                
+                print(f"💾 Case {case_id} hit {hit_number} saved to {OVERALL_CSV}")
+                
+            finally:
+                # Lock is automatically released when the file is closed
+                pass
+                
     except Exception as e:
         print(f"❌ Error saving case to overall CSV: {e}")
+        # Clean up temp file if it exists
+        temp_file = f"{OVERALL_CSV}.tmp"
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 
 def check_image_credits(target_image_url, page_url, output_path=None, similarity_threshold=0.85, max_workers=10, case_url=None, hit_id=None):
