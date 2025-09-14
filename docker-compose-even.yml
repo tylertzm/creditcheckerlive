@@ -17,6 +17,8 @@ services:
       - ./overall_checked_claims.csv:/app/overall_checked_claims.csv
       # Mount claims.csv to persist results
       - ./claims.csv:/app/claims.csv
+      # Mount current directory for daily CSV files (allows new daily files each day)
+      - .:/app/data
     # Restart policy - always restart on failure
     restart: unless-stopped
     # Resource limits (optional)

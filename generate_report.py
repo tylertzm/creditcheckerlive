@@ -575,7 +575,7 @@ def generate_html_dashboard():
             <div class="left-panel">
                 <!-- Overview Statistics -->
                 <div class="section">
-                    <div class="section-title">📊 Overview Statistics (From Overall Data)</div>
+                    <div class="section-title">Overview Statistics (From Overall Data)</div>
                     <div class="metrics-grid">
                         <div class="metric">
                             <div class="metric-value">{total_unique_cases}</div>
@@ -610,9 +610,23 @@ def generate_html_dashboard():
                 
                 <!-- Today's Claims Statistics -->
                 <div class="section">
-                    <div class="section-title">📈 Today's Claims Statistics ({today})</div>
+                    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Today's Claims Statistics ({today})</span>
+                        <a href="/overall_checked_claims.csv" class="download-btn" style="
+                            background: #065f46;
+                            color: #10b981;
+                            padding: 8px 16px;
+                            text-decoration: none;
+                            border-radius: 4px;
+                            font-weight: 600;
+                            font-size: 0.8em;
+                            transition: all 0.3s ease;
+                        " onmouseover="this.style.background='#10b981'; this.style.color='#000000';" onmouseout="this.style.background='#065f46'; this.style.color='#10b981';">
+                            Download Overall Claims CSV
+                        </a>
+                    </div>
                     <div style="background: #1f2937; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
-                        <div style="color: #fbbf24; font-weight: 600; margin-bottom: 8px;">⚠️ Data Accuracy Notice</div>
+                        <div style="color: #fbbf24; font-weight: 600; margin-bottom: 8px;">Data Accuracy Notice</div>
                         <div style="color: #d1d5db; font-size: 0.9em; line-height: 1.4;">
                             Today's statistics may contain processing errors and should be considered preliminary. 
                             For accurate and reliable data, please refer to the overall dataset which undergoes 
@@ -649,7 +663,7 @@ def generate_html_dashboard():
                 
                 <!-- Daily CSV Files -->
                 <div class="section">
-                    <div class="section-title">📅 Daily CSV Files</div>
+                    <div class="section-title">Daily CSV Files</div>
                     <table class="table">
                         <thead>
                             <tr>
@@ -697,7 +711,7 @@ def generate_html_dashboard():
                 
                 <!-- Archived Files -->
                 <div class="section">
-                    <div class="section-title">📁 Archived CSV Files</div>
+                    <div class="section-title">Archived CSV Files</div>
                     <table class="table">
                         <thead>
                             <tr>
@@ -737,7 +751,7 @@ def generate_html_dashboard():
             
             <div class="right-panel">
                 <!-- System Status -->
-                <div class="section-title">🔄 System Status</div>
+                <div class="section-title">System Status</div>
                 <div class="info-grid">
                     <div class="info-row">
                         <span>Active Daily Files</span>
@@ -757,7 +771,7 @@ def generate_html_dashboard():
                     </div>
                 </div>
                 
-                <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Report</button>
+                <button class="refresh-btn" onclick="location.reload()">Refresh Report</button>
             </div>
         </div>
     </div>
@@ -801,8 +815,8 @@ def generate_html_dashboard():
             // Add loading indicator with animation
             const header = document.querySelector('.header p');
             if (header) {{
-                const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
-                header.innerHTML = originalText + ' • <span style="color: #10b981; animation: pulse 1s infinite;">🔄 UPDATING</span>';
+                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                header.innerHTML = originalText + ' • <span style="color: #10b981; animation: pulse 1s infinite;">UPDATING</span>';
             }}
             
             fetch('/credit_checker_report.html', {{
@@ -861,7 +875,7 @@ def generate_html_dashboard():
                 
                 // Show update indicator with enhanced feedback
                 if (hasChanges) {{
-                    console.log('📊 Dashboard updated with changes!');
+                    console.log('Dashboard updated with changes!');
                     
                     // Add a subtle notification
                     const notification = document.createElement('div');
@@ -878,7 +892,7 @@ def generate_html_dashboard():
                         animation: slideInUp 0.5s ease-out;
                         box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
                     `;
-                    notification.textContent = '📊 Data Updated!';
+                    notification.textContent = 'Data Updated!';
                     document.body.appendChild(notification);
                     
                     setTimeout(() => {{
@@ -934,16 +948,16 @@ def generate_html_dashboard():
                 
                 // Remove loading indicator
                 if (header) {{
-                    const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
-                    header.innerHTML = originalText + ' • <span style="color: #10b981;">🟢 LIVE</span>';
+                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                header.innerHTML = originalText + ' • <span style="color: #10b981;">LIVE</span>';
                 }}
             }})
             .catch(error => {{
                 console.log('Update failed:', error);
                 // Remove loading indicator on error
                 if (header) {{
-                    const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
-                    header.innerHTML = originalText + ' • <span style="color: #ef4444;">❌ ERROR</span>';
+                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                header.innerHTML = originalText + ' • <span style="color: #ef4444;">ERROR</span>';
                 }}
             }});
         }}
@@ -967,7 +981,7 @@ def generate_html_dashboard():
             // Add visual indicator for live updates
             const header = document.querySelector('.header p');
             if (header) {{
-                header.innerHTML += ' • <span style="color: #10b981;">🟢 LIVE</span>';
+                header.innerHTML += ' • <span style="color: #10b981;">LIVE</span>';
             }}
         }});
         
@@ -987,7 +1001,7 @@ def generate_html_dashboard():
 
 def main():
     """Main function"""
-    print("🔍 Generating Credit Checker Dashboard...")
+    print("Generating Credit Checker Dashboard...")
     
     # Generate HTML dashboard
     html_content = generate_html_dashboard()
@@ -997,9 +1011,9 @@ def main():
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f"✅ Dashboard generated: {output_file}")
-    print(f"🌐 Open in browser: file://{os.path.abspath(output_file)}")
-    print(f"📊 Or run: open {output_file}")
+    print(f"Dashboard generated: {output_file}")
+    print(f"Open in browser: file://{os.path.abspath(output_file)}")
+    print(f"Or run: open {output_file}")
 
 if __name__ == "__main__":
     main()

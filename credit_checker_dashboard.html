@@ -252,21 +252,21 @@
     <div class="dashboard">
         <div class="header">
             <h1>Credit Checker Dashboard</h1>
-            <p>September 14, 2025 • 11:37 • Live updates every 3s</p>
+            <p>September 14, 2025 • 11:43 • Live updates every 3s</p>
         </div>
         
         <div class="content">
             <div class="left-panel">
                 <!-- Overview Statistics -->
                 <div class="section">
-                    <div class="section-title">📊 Overview Statistics (From Overall Data)</div>
+                    <div class="section-title">Overview Statistics (From Overall Data)</div>
                     <div class="metrics-grid">
                         <div class="metric">
-                            <div class="metric-value">2157</div>
+                            <div class="metric-value">2178</div>
                             <div class="metric-label">Unique Cases Processed</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">4709</div>
+                            <div class="metric-value">4751</div>
                             <div class="metric-label">Total Hits Processed</div>
                         </div>
                         <div class="metric">
@@ -274,11 +274,11 @@
                             <div class="metric-label">Daily CSV Files</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">3454</div>
+                            <div class="metric-value">3484</div>
                             <div class="metric-label">Images Found</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">848</div>
+                            <div class="metric-value">850</div>
                             <div class="metric-label">Keywords Found</div>
                         </div>
                         <div class="metric">
@@ -286,7 +286,7 @@
                             <div class="metric-label">Image Success Rate</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">18.0%</div>
+                            <div class="metric-value">17.9%</div>
                             <div class="metric-label">Keyword Success Rate</div>
                         </div>
                     </div>
@@ -294,9 +294,23 @@
                 
                 <!-- Today's Claims Statistics -->
                 <div class="section">
-                    <div class="section-title">📈 Today's Claims Statistics (2025-09-14)</div>
+                    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Today's Claims Statistics (2025-09-14)</span>
+                        <a href="/overall_checked_claims.csv" class="download-btn" style="
+                            background: #065f46;
+                            color: #10b981;
+                            padding: 8px 16px;
+                            text-decoration: none;
+                            border-radius: 4px;
+                            font-weight: 600;
+                            font-size: 0.8em;
+                            transition: all 0.3s ease;
+                        " onmouseover="this.style.background='#10b981'; this.style.color='#000000';" onmouseout="this.style.background='#065f46'; this.style.color='#10b981';">
+                            Download Overall Claims CSV
+                        </a>
+                    </div>
                     <div style="background: #1f2937; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
-                        <div style="color: #fbbf24; font-weight: 600; margin-bottom: 8px;">⚠️ Data Accuracy Notice</div>
+                        <div style="color: #fbbf24; font-weight: 600; margin-bottom: 8px;">Data Accuracy Notice</div>
                         <div style="color: #d1d5db; font-size: 0.9em; line-height: 1.4;">
                             Today's statistics may contain processing errors and should be considered preliminary. 
                             For accurate and reliable data, please refer to the overall dataset which undergoes 
@@ -305,15 +319,15 @@
                     </div>
                     <div class="metrics-grid" style="margin-bottom: 20px;">
                         <div class="metric">
-                            <div class="metric-value">18</div>
+                            <div class="metric-value">29</div>
                             <div class="metric-label">Total Claims Processed</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">18</div>
+                            <div class="metric-value">29</div>
                             <div class="metric-label">Unique Cases</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">11</div>
+                            <div class="metric-value">19</div>
                             <div class="metric-label">Images Found</div>
                         </div>
                         <div class="metric">
@@ -321,11 +335,11 @@
                             <div class="metric-label">Keywords Found</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">61.1%</div>
+                            <div class="metric-value">65.5%</div>
                             <div class="metric-label">Image Success Rate</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">16.7%</div>
+                            <div class="metric-value">10.3%</div>
                             <div class="metric-label">Keyword Success Rate</div>
                         </div>
                     </div>
@@ -333,7 +347,7 @@
                 
                 <!-- Daily CSV Files -->
                 <div class="section">
-                    <div class="section-title">📅 Daily CSV Files</div>
+                    <div class="section-title">Daily CSV Files</div>
                     <table class="table">
                         <thead>
                             <tr>
@@ -370,13 +384,13 @@
                             </tr>
                             <tr>
                                 <td><a href="/daily_claims_2025-09-14.csv" class="file-link">daily_claims_2025-09-14.csv</a></td>
-                                <td>18</td>
+                                <td>29</td>
                                 <td>0.01 MB</td>
-                                <td>2025-09-14 09:37:41</td>
-                                <td>11</td>
+                                <td>2025-09-14 09:43:20</td>
+                                <td>19</td>
                                 <td>3</td>
-                                <td>61.1%</td>
-                                <td>16.7%</td>
+                                <td>65.5%</td>
+                                <td>10.3%</td>
                             </tr>
                         </tbody>
                     </table>
@@ -384,7 +398,7 @@
                 
                 <!-- Archived Files -->
                 <div class="section">
-                    <div class="section-title">📁 Archived CSV Files</div>
+                    <div class="section-title">Archived CSV Files</div>
                     <table class="table">
                         <thead>
                             <tr>
@@ -406,7 +420,7 @@
             
             <div class="right-panel">
                 <!-- System Status -->
-                <div class="section-title">🔄 System Status</div>
+                <div class="section-title">System Status</div>
                 <div class="info-grid">
                     <div class="info-row">
                         <span>Active Daily Files</span>
@@ -422,11 +436,11 @@
                     </div>
                     <div class="info-row">
                         <span>Last Updated</span>
-                        <span class="info-value">11:37</span>
+                        <span class="info-value">11:43</span>
                     </div>
                 </div>
                 
-                <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Report</button>
+                <button class="refresh-btn" onclick="location.reload()">Refresh Report</button>
             </div>
         </div>
     </div>
@@ -470,8 +484,8 @@
             // Add loading indicator with animation
             const header = document.querySelector('.header p');
             if (header) {
-                const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
-                header.innerHTML = originalText + ' • <span style="color: #10b981; animation: pulse 1s infinite;">🔄 UPDATING</span>';
+                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                header.innerHTML = originalText + ' • <span style="color: #10b981; animation: pulse 1s infinite;">UPDATING</span>';
             }
             
             fetch('/credit_checker_report.html', {
@@ -530,7 +544,7 @@
                 
                 // Show update indicator with enhanced feedback
                 if (hasChanges) {
-                    console.log('📊 Dashboard updated with changes!');
+                    console.log('Dashboard updated with changes!');
                     
                     // Add a subtle notification
                     const notification = document.createElement('div');
@@ -547,7 +561,7 @@
                         animation: slideInUp 0.5s ease-out;
                         box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
                     `;
-                    notification.textContent = '📊 Data Updated!';
+                    notification.textContent = 'Data Updated!';
                     document.body.appendChild(notification);
                     
                     setTimeout(() => {
@@ -603,16 +617,16 @@
                 
                 // Remove loading indicator
                 if (header) {
-                    const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
-                    header.innerHTML = originalText + ' • <span style="color: #10b981;">🟢 LIVE</span>';
+                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                header.innerHTML = originalText + ' • <span style="color: #10b981;">LIVE</span>';
                 }
             })
             .catch(error => {
                 console.log('Update failed:', error);
                 // Remove loading indicator on error
                 if (header) {
-                    const originalText = header.textContent.replace(' • 🔄 UPDATING', '').replace(' • 🟢 LIVE', '');
-                    header.innerHTML = originalText + ' • <span style="color: #ef4444;">❌ ERROR</span>';
+                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                header.innerHTML = originalText + ' • <span style="color: #ef4444;">ERROR</span>';
                 }
             });
         }
@@ -636,7 +650,7 @@
             // Add visual indicator for live updates
             const header = document.querySelector('.header p');
             if (header) {
-                header.innerHTML += ' • <span style="color: #10b981;">🟢 LIVE</span>';
+                header.innerHTML += ' • <span style="color: #10b981;">LIVE</span>';
             }
         });
         

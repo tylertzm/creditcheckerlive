@@ -19,8 +19,8 @@ from checker import check_image_credits
 from library.upload_utils import add_internal_comment
 
 # Configuration
-EMAIL = 'siu-wang.HUNG@mediaident.com'
-PASSWORD = '!Changedpwat0616'
+EMAIL = 'proof@copytrack.com'
+PASSWORD = 'legal2024'
 OUTPUT_CSV = "claims.csv"
 
 MAX_HITS_PER_CLAIM = 2  # Process claims with 2 or fewer hits
