@@ -384,6 +384,10 @@ def process_case(driver, claim_url, case_id, processed_claims):
             try:
                 image_url_link = container.find_element(By.XPATH, './/th[strong[contains(text(), "Image-URL:")]]/following-sibling::td//a')
                 image_url = image_url_link.get_attribute('href')
+                # Normalize the image URL like in control.py
+                if image_url:
+                    from library.control_utils import normalize_image_url
+                    image_url = normalize_image_url(image_url)
             except:
                 image_url = None
             

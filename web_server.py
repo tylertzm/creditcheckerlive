@@ -49,7 +49,12 @@ def credit_checker_report():
     try:
         # Generate fresh report
         html_content = generate_html_dashboard()
-        return html_content
+        response = Response(html_content, mimetype='text/html')
+        # Disable caching to ensure fresh content
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     except Exception as e:
         return f"""
         <html>

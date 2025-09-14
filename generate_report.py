@@ -97,6 +97,69 @@ def get_archived_csvs():
         archived_files = glob.glob('logs/archive/*.csv')
     return sorted(archived_files)
 
+def get_overall_statistics():
+    """Get comprehensive statistics from the overall CSV file"""
+    overall_csv = get_overall_csv()
+    if not os.path.exists(overall_csv):
+        return None
+    
+    try:
+        with open(overall_csv, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        
+        if not rows:
+            return None
+        
+        # Calculate statistics
+        total_claims = len(rows)
+        images_found = sum(1 for row in rows if row.get('image_found', '').lower() == 'true')
+        keywords_found = sum(1 for row in rows if row.get('keyword_found', '').lower() == 'true')
+        success_cases = sum(1 for row in rows if row.get('error_status', '').lower() == 'success')
+        error_cases = sum(1 for row in rows if row.get('error_status', '').lower() not in ['success', ''])
+        
+        # Calculate success rates
+        image_success_rate = (images_found / total_claims * 100) if total_claims > 0 else 0
+        keyword_success_rate = (keywords_found / total_claims * 100) if total_claims > 0 else 0
+        overall_success_rate = (success_cases / total_claims * 100) if total_claims > 0 else 0
+        
+        # Get date range
+        processed_dates = []
+        for row in rows:
+            processed_at = row.get('processed_at', '')
+            if processed_at:
+                try:
+                    # Extract date from timestamp
+                    date_str = processed_at.split(' ')[0]
+                    processed_dates.append(datetime.strptime(date_str, '%Y-%m-%d'))
+                except:
+                    continue
+        
+        date_range = "N/A"
+        if processed_dates:
+            min_date = min(processed_dates)
+            max_date = max(processed_dates)
+            date_range = f"{min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}"
+        
+        # Get unique case IDs
+        unique_cases = len(set(row.get('case_id', '') for row in rows if row.get('case_id')))
+        
+        return {
+            'total_claims': total_claims,
+            'unique_cases': unique_cases,
+            'images_found': images_found,
+            'keywords_found': keywords_found,
+            'success_cases': success_cases,
+            'error_cases': error_cases,
+            'image_success_rate': image_success_rate,
+            'keyword_success_rate': keyword_success_rate,
+            'overall_success_rate': overall_success_rate,
+            'date_range': date_range
+        }
+        
+    except Exception as e:
+        return {'error': str(e)}
+
 def generate_html_dashboard():
     """Generate the clean viewport dashboard HTML"""
     
@@ -112,26 +175,27 @@ def generate_html_dashboard():
     
     # Get statistics
     overall_stats = get_file_stats(overall_csv)
+    overall_statistics = get_overall_statistics()
     daily_stats = {f: get_file_stats(f) for f in daily_csvs}
     archived_stats = {f: get_file_stats(f) for f in archived_csvs}
     
-    # Calculate totals from daily CSVs only - count only rows with 7 fields
+    # Calculate totals from TODAY'S daily CSV only - count only rows with 13 fields
+    today = now.strftime('%Y-%m-%d')
+    today_csv = f'daily_claims_{today}.csv'
     total_daily_rows = 0
-    for filename, stats in daily_stats.items():
-        if stats and 'error' not in stats:
-            try:
-                with open(filename, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    if len(lines) > 1:
-                        # Count only rows with exactly 13 fields
-                        valid_rows = 0
-                        for line in lines[1:]:
-                            parts = line.strip().split(',')
-                            if len(parts) == 13:
-                                valid_rows += 1
-                        total_daily_rows += valid_rows
-            except Exception as e:
-                print(f"Warning: Could not count valid rows in {filename}: {e}")
+    
+    if os.path.exists(today_csv):
+        try:
+            with open(today_csv, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if len(lines) > 1:
+                    # Count only rows with exactly 13 fields
+                    for line in lines[1:]:
+                        parts = line.strip().split(',')
+                        if len(parts) == 13:
+                            total_daily_rows += 1
+        except Exception as e:
+            print(f"Warning: Could not count valid rows in {today_csv}: {e}")
     # Calculate archived cases using the same robust parsing
     total_archived_cases = 0
     for filename, stats in archived_stats.items():
@@ -150,49 +214,104 @@ def generate_html_dashboard():
             except Exception as e:
                 print(f"Warning: Could not count valid rows in {filename}: {e}")
     
-    # Calculate unique case IDs and combined statistics from all daily CSVs
-    unique_case_ids = set()
-    total_images_found = 0
-    total_no_images = 0
-    total_keywords_found = 0
-    total_no_keywords = 0
+    # Calculate TODAY'S statistics for the "Today's Claims Statistics" section
+    today_unique_cases = 0
+    today_images_found = 0
+    today_no_images = 0
+    today_keywords_found = 0
+    today_no_keywords = 0
     
-    for filename, stats in daily_stats.items():
-        if stats and 'error' not in stats:
-            # Count unique case IDs from this file - only count rows with 7 fields
-            try:
-                with open(filename, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    if len(lines) > 1:  # Skip if only header
-                        for line_num, line in enumerate(lines[1:], 2):
-                            try:
-                                # Split by comma and check if we have exactly 13 fields
-                                parts = line.strip().split(',')
-                                if len(parts) == 13:
-                                    case_id = parts[0].strip()
-                                    if case_id and case_id.isdigit():
-                                        unique_case_ids.add(case_id)
-                            except Exception as e:
-                                # Skip malformed lines
-                                continue
-            except Exception as e:
-                print(f"Warning: Could not read {filename} for case ID counting: {e}")
-            
-            # Get statistics from the stats
-            if 'keyword_stats' in stats and 'error' not in stats.get('keyword_stats', {}):
-                keyword_stats = stats['keyword_stats']
-                total_images_found += keyword_stats.get('with_images', 0)
-                total_no_images += keyword_stats.get('without_images', 0)
-                total_keywords_found += keyword_stats.get('with_keywords', 0)
-                total_no_keywords += keyword_stats.get('without_keywords', 0)
+    # Only process today's CSV file
+    if os.path.exists(today_csv):
+        try:
+            with open(today_csv, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if len(lines) > 1:  # Skip if only header
+                    unique_case_ids = set()
+                    for line_num, line in enumerate(lines[1:], 2):
+                        try:
+                            # Split by comma and check if we have exactly 13 fields
+                            parts = line.strip().split(',')
+                            if len(parts) == 13:
+                                case_id = parts[0].strip()
+                                if case_id and case_id.isdigit():
+                                    unique_case_ids.add(case_id)
+                                
+                                # Count images and keywords from today's data
+                                if len(parts) > 5 and parts[5].lower() == 'true':
+                                    today_images_found += 1
+                                elif len(parts) > 5 and parts[5].lower() == 'false':
+                                    today_no_images += 1
+                                    
+                                if len(parts) > 6 and parts[6].lower() == 'true':
+                                    today_keywords_found += 1
+                                elif len(parts) > 6 and parts[6].lower() == 'false':
+                                    today_no_keywords += 1
+                        except Exception as e:
+                            # Skip malformed lines
+                            continue
+                    today_unique_cases = len(unique_case_ids)
+        except Exception as e:
+            print(f"Warning: Could not read {today_csv} for statistics: {e}")
     
-    total_unique_cases = len(unique_case_ids)
-    # Calculate actual processed rows (those with True/False values)
-    total_processed_images = total_images_found + total_no_images
-    total_processed_keywords = total_keywords_found + total_no_keywords
-    total_hits = total_daily_rows  # Total data rows
-    image_success_rate = (total_images_found / total_processed_images * 100) if total_processed_images > 0 else 0
-    keyword_success_rate = (total_keywords_found / total_processed_keywords * 100) if total_processed_keywords > 0 else 0
+    # Calculate today's success rates
+    today_processed_images = today_images_found + today_no_images
+    today_processed_keywords = today_keywords_found + today_no_keywords
+    today_image_success_rate = (today_images_found / today_processed_images * 100) if today_processed_images > 0 else 0
+    today_keyword_success_rate = (today_keywords_found / today_processed_keywords * 100) if today_processed_keywords > 0 else 0
+    
+    # Use overall statistics for the main overview section
+    if overall_statistics and 'error' not in overall_statistics:
+        total_unique_cases = overall_statistics['unique_cases']
+        total_hits = overall_statistics['total_claims']
+        total_images_found = overall_statistics['images_found']
+        total_keywords_found = overall_statistics['keywords_found']
+        image_success_rate = overall_statistics['image_success_rate']
+        keyword_success_rate = overall_statistics['keyword_success_rate']
+    else:
+        # Fallback to daily CSV calculation if overall stats unavailable
+        unique_case_ids = set()
+        total_images_found = 0
+        total_no_images = 0
+        total_keywords_found = 0
+        total_no_keywords = 0
+        
+        for filename, stats in daily_stats.items():
+            if stats and 'error' not in stats:
+                # Count unique case IDs from this file - only count rows with 13 fields
+                try:
+                    with open(filename, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                        if len(lines) > 1:  # Skip if only header
+                            for line_num, line in enumerate(lines[1:], 2):
+                                try:
+                                    # Split by comma and check if we have exactly 13 fields
+                                    parts = line.strip().split(',')
+                                    if len(parts) == 13:
+                                        case_id = parts[0].strip()
+                                        if case_id and case_id.isdigit():
+                                            unique_case_ids.add(case_id)
+                                except Exception as e:
+                                    # Skip malformed lines
+                                    continue
+                except Exception as e:
+                    print(f"Warning: Could not read {filename} for case ID counting: {e}")
+                
+                # Get statistics from the stats
+                if 'keyword_stats' in stats and 'error' not in stats.get('keyword_stats', {}):
+                    keyword_stats = stats['keyword_stats']
+                    total_images_found += keyword_stats.get('with_images', 0)
+                    total_no_images += keyword_stats.get('without_images', 0)
+                    total_keywords_found += keyword_stats.get('with_keywords', 0)
+                    total_no_keywords += keyword_stats.get('without_keywords', 0)
+        
+        total_unique_cases = len(unique_case_ids)
+        # Calculate actual processed rows (those with True/False values)
+        total_processed_images = total_images_found + total_no_images
+        total_processed_keywords = total_keywords_found + total_no_keywords
+        total_hits = total_daily_rows  # Total data rows
+        image_success_rate = (total_images_found / total_processed_images * 100) if total_processed_images > 0 else 0
+        keyword_success_rate = (total_keywords_found / total_processed_keywords * 100) if total_processed_keywords > 0 else 0
     
     # Generate HTML
     html = f"""<!DOCTYPE html>
@@ -456,7 +575,7 @@ def generate_html_dashboard():
             <div class="left-panel">
                 <!-- Overview Statistics -->
                 <div class="section">
-                    <div class="section-title">📊 Overview Statistics (From Daily CSVs)</div>
+                    <div class="section-title">📊 Overview Statistics (From Overall Data)</div>
                     <div class="metrics-grid">
                         <div class="metric">
                             <div class="metric-value">{total_unique_cases}</div>
@@ -489,27 +608,43 @@ def generate_html_dashboard():
                     </div>
                 </div>
                 
-                <!-- Overall Claims -->
+                <!-- Today's Claims Statistics -->
                 <div class="section">
-                    <div class="section-title">📈 Overall Checked Claims</div>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>File</th>
-                                <th>File Size</th>
-                                <th>Last Modified</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><a href="/{overall_csv}" class="file-link">{overall_csv}</a></td>
-                                <td>{overall_stats['file_size_mb'] if overall_stats else 'N/A'} MB</td>
-                                <td>{overall_stats['mod_time'] if overall_stats else 'N/A'}</td>
-                                <td><span class="status-active">✓ Active</span></td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="section-title">📈 Today's Claims Statistics ({today})</div>
+                    <div style="background: #1f2937; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
+                        <div style="color: #fbbf24; font-weight: 600; margin-bottom: 8px;">⚠️ Data Accuracy Notice</div>
+                        <div style="color: #d1d5db; font-size: 0.9em; line-height: 1.4;">
+                            Today's statistics may contain processing errors and should be considered preliminary. 
+                            For accurate and reliable data, please refer to the overall dataset which undergoes 
+                            comprehensive validation and quality assurance processes.
+                        </div>
+                    </div>
+                    <div class="metrics-grid" style="margin-bottom: 20px;">
+                        <div class="metric">
+                            <div class="metric-value">{total_daily_rows}</div>
+                            <div class="metric-label">Total Claims Processed</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{today_unique_cases}</div>
+                            <div class="metric-label">Unique Cases</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{today_images_found}</div>
+                            <div class="metric-label">Images Found</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{today_keywords_found}</div>
+                            <div class="metric-label">Keywords Found</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{today_image_success_rate:.1f}%</div>
+                            <div class="metric-label">Image Success Rate</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{today_keyword_success_rate:.1f}%</div>
+                            <div class="metric-label">Keyword Success Rate</div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Daily CSV Files -->
