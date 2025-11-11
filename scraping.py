@@ -3,6 +3,7 @@ import csv
 import sys
 import time
 import fcntl
+import random
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -258,8 +259,9 @@ def get_qualifying_cases(driver, target_count, processed_claims, filter_type=Non
                     print(f"[WARN] Could not save progress reset: {e}")
                 continue  # Continue the loop from page 1
             else:
-                # Normal case: there is a next button, so increment page
-                current_page += 1
+                # Normal case: there is a next button, so jump to random page
+                current_page = random.randint(20, 200)
+                print(f"[INFO] Jumping to random page: {current_page}")
         except:
             print(f"[INFO] No next button found on page {current_page}, cycling back to page 1")
             current_page = 1
@@ -323,7 +325,7 @@ def update_daily_claims(case_rows):
     try:
         # Get today's date for the daily file
         today = datetime.now().strftime('%Y-%m-%d')
-        daily_filename = f'daily_claims_{today}.csv'
+        daily_filename = f'/app/data/daily_claims_{today}.csv'
         
         # Use file locking to prevent concurrent writes
         with open(daily_filename, 'a', newline='', encoding='utf-8') as f:
@@ -463,6 +465,7 @@ def process_case(driver, claim_url, case_id, processed_claims):
                         credit_results.get('image_found', False),
                         len(credit_results.get('credit_keywords', [])) > 0,
                         ', '.join(credit_results.get('credit_keywords', [])),
+                        ', '.join(credit_results.get('credit_texts', [])),
                         credit_results.get('highlight_url', ''),
                         credit_results.get('error', ''),
                         credit_results.get('screenshot_path', ''),
@@ -478,6 +481,7 @@ def process_case(driver, claim_url, case_id, processed_claims):
                     credit_results.get('image_found', False),
                     len(credit_results.get('credit_keywords', [])) > 0,
                     ', '.join(credit_results.get('credit_keywords', [])),
+                    ', '.join(credit_results.get('credit_texts', [])),
                     credit_results.get('highlight_url', ''),
                     credit_results.get('error', ''),
                     credit_results.get('screenshot_path', ''),

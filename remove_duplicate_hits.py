@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Remove duplicate rows based on hit_number column, keeping only the first occurrence.
+Remove rows that do not have more than 10 fields separated by commas, including empty ones.
+Keeps only rows with 11 or more fields.
 Uses only built-in Python libraries.
 """
 
@@ -8,74 +9,54 @@ import csv
 import sys
 from datetime import datetime
 
-def remove_duplicate_hits(input_file, output_file):
-    """Remove duplicate rows based on hit_number column."""
+def filter_rows_by_field_count(input_file, output_file, min_fields=11):
+    """Remove rows that have 10 or fewer fields, keeping only rows with 11+ fields."""
     
     print(f"📊 Loading data from {input_file}...")
+    print(f"🎯 Filtering to keep only rows with {min_fields}+ fields...")
     
-    seen_hit_numbers = set()
     rows_processed = 0
     rows_written = 0
-    duplicates_removed = 0
+    rows_filtered_out = 0
     
     with open(input_file, 'r', newline='', encoding='utf-8') as infile:
         reader = csv.reader(infile)
         
-        # Read header
-        header = next(reader)
-        rows_processed += 1
-        
-        # Find hit_number column index
-        try:
-            hit_number_index = header.index('hit_number')
-        except ValueError:
-            print("❌ Error: 'hit_number' column not found in CSV")
-            return
-        
-        print(f"📈 Found hit_number column at index {hit_number_index}")
-        
         with open(output_file, 'w', newline='', encoding='utf-8') as outfile:
             writer = csv.writer(outfile)
-            
-            # Write header
-            writer.writerow(header)
-            rows_written += 1
             
             # Process each row
             for row in reader:
                 rows_processed += 1
                 
-                if len(row) > hit_number_index:
-                    hit_number = row[hit_number_index]
-                    
-                    if hit_number not in seen_hit_numbers:
-                        # First time seeing this hit_number
-                        seen_hit_numbers.add(hit_number)
-                        writer.writerow(row)
-                        rows_written += 1
-                    else:
-                        # Duplicate hit_number
-                        duplicates_removed += 1
+                field_count = len(row)
+                
+                if field_count >= min_fields:
+                    # Row has enough fields, keep it
+                    writer.writerow(row)
+                    rows_written += 1
                 else:
-                    # Malformed row, skip
-                    print(f"⚠️  Skipping malformed row {rows_processed}")
-                    continue
+                    # Row has too few fields, filter it out
+                    rows_filtered_out += 1
+                    if rows_filtered_out <= 5:  # Show first 5 filtered rows as examples
+                        print(f"⚠️  Filtered out row {rows_processed} (only {field_count} fields): {row[:3]}...")
+                    elif rows_filtered_out == 6:
+                        print("⚠️  ... (showing only first 5 filtered rows)")
     
     print(f"\n📊 Summary:")
     print(f"   • Total rows processed: {rows_processed:,}")
-    print(f"   • Rows written: {rows_written:,}")
-    print(f"   • Duplicates removed: {duplicates_removed:,}")
-    print(f"   • Unique hit numbers: {len(seen_hit_numbers):,}")
-    print(f"   • Reduction: {(duplicates_removed / rows_processed * 100):.1f}%")
+    print(f"   • Rows kept ({min_fields}+ fields): {rows_written:,}")
+    print(f"   • Rows filtered out (≤{min_fields-1} fields): {rows_filtered_out:,}")
+    print(f"   • Retention rate: {(rows_written / rows_processed * 100):.1f}%" if rows_processed > 0 else "   • Retention rate: 0%")
 
 if __name__ == "__main__":
     input_file = "overall_checked_claims.csv"
-    output_file = "overall_checked_claims_clean.csv"
+    output_file = "overall_checked_claims_filtered.csv"
     
     try:
-        remove_duplicate_hits(input_file, output_file)
-        print(f"\n✅ Deduplication completed successfully!")
-        print(f"💾 Cleaned data saved to: {output_file}")
+        filter_rows_by_field_count(input_file, output_file, min_fields=11)
+        print(f"\n✅ Filtering completed successfully!")
+        print(f"💾 Filtered data saved to: {output_file}")
     except Exception as e:
         print(f"❌ Error: {e}")
         sys.exit(1)

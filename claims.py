@@ -3,6 +3,7 @@ import csv
 import sys
 import datetime
 import time
+import random
 from playwright.sync_api import sync_playwright
 
 # Parse command line arguments for even/odd filtering
@@ -295,7 +296,9 @@ with sync_playwright() as p:
             print(f"[INFO] Reached maximum pages limit ({MAX_PAGES_TO_CHECK}). Stopping.")
             break
             
-        current_page += 1
+        # Jump to random page between 20-200
+        current_page = random.randint(20, 200)
+        print(f"[INFO] Jumping to random page: {current_page}")
 
     print(f"[INFO] Total cases processed: {len(case_urls)}")
 

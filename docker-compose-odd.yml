@@ -35,7 +35,7 @@ services:
     shm_size: 2gb
     # Health check to monitor the container
     healthcheck:
-      test: ["CMD", "pgrep", "-f", "python3 scraping.py"]
+      test: ["CMD", "pgrep", "-f", "python scraping.py"]
       interval: 30s
       timeout: 10s
       retries: 3

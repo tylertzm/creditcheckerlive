@@ -9,7 +9,7 @@ import sys
 import time
 import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from generate_report import generate_html_report
+from generate_report import generate_html_dashboard
 import webbrowser
 
 class ReportHandler(SimpleHTTPRequestHandler):
@@ -19,7 +19,7 @@ class ReportHandler(SimpleHTTPRequestHandler):
         if self.path == '/' or self.path == '/report':
             # Generate fresh report
             print("🔄 Regenerating report...")
-            html_content = generate_html_report()
+            html_content = generate_html_dashboard()
             
             # Write to file
             with open('credit_checker_report.html', 'w', encoding='utf-8') as f:
@@ -70,7 +70,7 @@ def main():
     
     # Generate initial report
     print("🔍 Generating initial report...")
-    html_content = generate_html_report()
+    html_content = generate_html_dashboard()
     with open('credit_checker_report.html', 'w', encoding='utf-8') as f:
         f.write(html_content)
     print("✅ Initial report generated")

@@ -20,12 +20,18 @@ def get_file_stats(filepath):
             lines = f.readlines()
         
         total_lines = len(lines)
-        # Count only rows with exactly 13 fields (valid data rows)
+        # Count valid data rows using proper CSV parsing
         data_lines = 0
-        for line in lines[1:]:  # Skip header
-            parts = line.strip().split(',')
-            if len(parts) == 13:
-                data_lines += 1
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Check if essential fields are present (very lenient validation)
+                if (row.get('case_id') and 
+                    row.get('case_url') and 
+                    row.get('hit_number') and 
+                    row.get('image_found') and 
+                    row.get('keyword_found')):
+                    data_lines += 1
         
         # Get file size
         file_size = os.path.getsize(filepath)
@@ -34,39 +40,40 @@ def get_file_stats(filepath):
         # Get modification time
         mod_time = datetime.fromtimestamp(os.path.getmtime(filepath))
         
-        # Try to get keyword statistics if it's a data CSV - only count rows with 7 fields
+        # Try to get keyword statistics if it's a data CSV - use proper CSV parsing
         keyword_stats = {}
         if data_lines > 0 and total_lines > 1:
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    if len(lines) > 1:
-                        header = lines[0].strip().split(',')
-                        valid_rows = []
+                    reader = csv.DictReader(f)
+                    valid_rows = []
+                    
+                    for row in reader:
+                        # Check if essential fields are present (very lenient validation)
+                        if (row.get('case_id') and 
+                            row.get('case_url') and 
+                            row.get('hit_number') and 
+                            row.get('image_found') and 
+                            row.get('keyword_found')):
+                            valid_rows.append(row)
+                    
+                    if valid_rows:
+                        # Count keyword found cases
+                        keyword_found = sum(1 for row in valid_rows if row.get('keyword_found', '').lower() == 'true')
+                        no_keywords = sum(1 for row in valid_rows if row.get('keyword_found', '').lower() == 'false')
                         
-                        # Only process rows with exactly 13 fields
-                        for line in lines[1:]:
-                            parts = line.strip().split(',')
-                            if len(parts) == 13:
-                                valid_rows.append(parts)
+                        # Count image found cases
+                        image_found = sum(1 for row in valid_rows if row.get('image_found', '').lower() == 'true')
+                        no_images = sum(1 for row in valid_rows if row.get('image_found', '').lower() == 'false')
                         
-                        if valid_rows:
-                            # Count keyword found cases (column 7, index 6)
-                            keyword_found = sum(1 for row in valid_rows if len(row) > 6 and row[6].lower() == 'true')
-                            no_keywords = sum(1 for row in valid_rows if len(row) > 6 and row[6].lower() == 'false')
-                            
-                            # Count image found cases (column 6, index 5)
-                            image_found = sum(1 for row in valid_rows if len(row) > 5 and row[5].lower() == 'true')
-                            no_images = sum(1 for row in valid_rows if len(row) > 5 and row[5].lower() == 'false')
-                            
-                            keyword_stats = {
-                                'with_keywords': keyword_found,
-                                'without_keywords': no_keywords,
-                                'success_rate': (keyword_found / len(valid_rows) * 100) if len(valid_rows) > 0 else 0,
-                                'with_images': image_found,
-                                'without_images': no_images,
-                                'image_success_rate': (image_found / len(valid_rows) * 100) if len(valid_rows) > 0 else 0
-                            }
+                        keyword_stats = {
+                            'with_keywords': keyword_found,
+                            'without_keywords': no_keywords,
+                            'success_rate': (keyword_found / len(valid_rows) * 100) if len(valid_rows) > 0 else 0,
+                            'with_images': image_found,
+                            'without_images': no_images,
+                            'image_success_rate': (image_found / len(valid_rows) * 100) if len(valid_rows) > 0 else 0
+                        }
             except Exception as e:
                 keyword_stats = {'error': str(e)}
         
@@ -118,9 +125,10 @@ def get_overall_statistics():
         success_cases = sum(1 for row in rows if row.get('error_status', '').lower() == 'success')
         error_cases = sum(1 for row in rows if row.get('error_status', '').lower() not in ['success', ''])
         
-        # Calculate success rates
+        # Calculate success rates directly from overall CSV data
         image_success_rate = (images_found / total_claims * 100) if total_claims > 0 else 0
         keyword_success_rate = (keywords_found / total_claims * 100) if total_claims > 0 else 0
+            
         overall_success_rate = (success_cases / total_claims * 100) if total_claims > 0 else 0
         
         # Get date range
@@ -179,7 +187,7 @@ def generate_html_dashboard():
     daily_stats = {f: get_file_stats(f) for f in daily_csvs}
     archived_stats = {f: get_file_stats(f) for f in archived_csvs}
     
-    # Calculate totals from TODAY'S daily CSV only - count only rows with 13 fields
+    # Calculate totals from TODAY'S daily CSV only - use proper CSV parsing
     today = now.strftime('%Y-%m-%d')
     today_csv = f'daily_claims_{today}.csv'
     total_daily_rows = 0
@@ -187,30 +195,32 @@ def generate_html_dashboard():
     if os.path.exists(today_csv):
         try:
             with open(today_csv, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                if len(lines) > 1:
-                    # Count only rows with exactly 13 fields
-                    for line in lines[1:]:
-                        parts = line.strip().split(',')
-                        if len(parts) == 13:
-                            total_daily_rows += 1
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # Check if essential fields are present (very lenient validation)
+                    if (row.get('case_id') and 
+                        row.get('case_url') and 
+                        row.get('hit_number') and 
+                        row.get('image_found') and 
+                        row.get('keyword_found')):
+                        total_daily_rows += 1
         except Exception as e:
             print(f"Warning: Could not count valid rows in {today_csv}: {e}")
-    # Calculate archived cases using the same robust parsing
+    # Calculate archived cases using proper CSV parsing
     total_archived_cases = 0
     for filename, stats in archived_stats.items():
         if stats and 'error' not in stats:
             try:
                 with open(filename, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    if len(lines) > 1:
-                        # Count only rows with exactly 13 fields
-                        valid_rows = 0
-                        for line in lines[1:]:
-                            parts = line.strip().split(',')
-                            if len(parts) == 13:
-                                valid_rows += 1
-                        total_archived_cases += valid_rows
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        # Check if essential fields are present (very lenient validation)
+                        if (row.get('case_id') and 
+                            row.get('case_url') and 
+                            row.get('hit_number') and 
+                            row.get('image_found') and 
+                            row.get('keyword_found')):
+                            total_archived_cases += 1
             except Exception as e:
                 print(f"Warning: Could not count valid rows in {filename}: {e}")
     
@@ -221,40 +231,39 @@ def generate_html_dashboard():
     today_keywords_found = 0
     today_no_keywords = 0
     
-    # Only process today's CSV file
+    # Only process today's CSV file using proper CSV parsing
     if os.path.exists(today_csv):
         try:
             with open(today_csv, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                if len(lines) > 1:  # Skip if only header
-                    unique_case_ids = set()
-                    for line_num, line in enumerate(lines[1:], 2):
-                        try:
-                            # Split by comma and check if we have exactly 13 fields
-                            parts = line.strip().split(',')
-                            if len(parts) == 13:
-                                case_id = parts[0].strip()
-                                if case_id and case_id.isdigit():
-                                    unique_case_ids.add(case_id)
-                                
-                                # Count images and keywords from today's data
-                                if len(parts) > 5 and parts[5].lower() == 'true':
-                                    today_images_found += 1
-                                elif len(parts) > 5 and parts[5].lower() == 'false':
-                                    today_no_images += 1
-                                    
-                                if len(parts) > 6 and parts[6].lower() == 'true':
-                                    today_keywords_found += 1
-                                elif len(parts) > 6 and parts[6].lower() == 'false':
-                                    today_no_keywords += 1
-                        except Exception as e:
-                            # Skip malformed lines
-                            continue
-                    today_unique_cases = len(unique_case_ids)
+                reader = csv.DictReader(f)
+                unique_case_ids = set()
+                for row in reader:
+                    # Check if essential fields are present (very lenient validation)
+                    if (row.get('case_id') and 
+                        row.get('case_url') and 
+                        row.get('hit_number') and 
+                        row.get('image_found') and 
+                        row.get('keyword_found')):
+                        
+                        case_id = row.get('case_id', '').strip()
+                        if case_id and case_id.isdigit():
+                            unique_case_ids.add(case_id)
+                        
+                        # Count images and keywords from today's data
+                        if row.get('image_found', '').lower() == 'true':
+                            today_images_found += 1
+                        elif row.get('image_found', '').lower() == 'false':
+                            today_no_images += 1
+                            
+                        if row.get('keyword_found', '').lower() == 'true':
+                            today_keywords_found += 1
+                        elif row.get('keyword_found', '').lower() == 'false':
+                            today_no_keywords += 1
+                today_unique_cases = len(unique_case_ids)
         except Exception as e:
             print(f"Warning: Could not read {today_csv} for statistics: {e}")
     
-    # Calculate today's success rates
+    # Calculate today's success rates as averages
     today_processed_images = today_images_found + today_no_images
     today_processed_keywords = today_keywords_found + today_no_keywords
     today_image_success_rate = (today_images_found / today_processed_images * 100) if today_processed_images > 0 else 0
@@ -310,8 +319,19 @@ def generate_html_dashboard():
         total_processed_images = total_images_found + total_no_images
         total_processed_keywords = total_keywords_found + total_no_keywords
         total_hits = total_daily_rows  # Total data rows
-        image_success_rate = (total_images_found / total_processed_images * 100) if total_processed_images > 0 else 0
-        keyword_success_rate = (total_keywords_found / total_processed_keywords * 100) if total_processed_keywords > 0 else 0
+        
+        # Calculate average success rates across all daily files
+        daily_image_rates = []
+        daily_keyword_rates = []
+        for filename, stats in daily_stats.items():
+            if stats and 'error' not in stats and 'keyword_stats' in stats:
+                keyword_stats = stats['keyword_stats']
+                if 'error' not in keyword_stats:
+                    daily_image_rates.append(keyword_stats.get('image_success_rate', 0))
+                    daily_keyword_rates.append(keyword_stats.get('success_rate', 0))
+        
+        image_success_rate = sum(daily_image_rates) / len(daily_image_rates) if daily_image_rates else 0
+        keyword_success_rate = sum(daily_keyword_rates) / len(daily_keyword_rates) if daily_keyword_rates else 0
     
     # Generate HTML
     html = f"""<!DOCTYPE html>
@@ -319,6 +339,7 @@ def generate_html_dashboard():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="10">
     <title>Credit Checker Dashboard</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -568,7 +589,7 @@ def generate_html_dashboard():
     <div class="dashboard">
         <div class="header">
             <h1>Credit Checker Dashboard</h1>
-            <p>{now.strftime('%B %d, %Y • %H:%M')} • Live updates every 3s</p>
+            <p>{now.strftime('%B %d, %Y • %H:%M')} • Live updates every 10s</p>
         </div>
         
         <div class="content">
@@ -777,46 +798,13 @@ def generate_html_dashboard():
     </div>
     
     <script>
-        // Real-time data updates
-        let updateInterval;
-        
-        // Smooth number counting animation
-        function animateNumber(element, startValue, endValue, duration = 1000) {{
-            const startTime = performance.now();
-            const isPercentage = endValue.toString().includes('%');
-            const numericEndValue = parseFloat(endValue.replace('%', ''));
-            const numericStartValue = parseFloat(startValue.replace('%', ''));
-            
-            function updateNumber(currentTime) {{
-                const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                
-                // Easing function for smooth animation
-                const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-                const currentValue = numericStartValue + (numericEndValue - numericStartValue) * easeOutCubic;
-                
-                if (isPercentage) {{
-                    element.textContent = currentValue.toFixed(1) + '%';
-                }} else {{
-                    element.textContent = Math.round(currentValue).toLocaleString();
-                }}
-                
-                if (progress < 1) {{
-                    requestAnimationFrame(updateNumber);
-                }} else {{
-                    element.textContent = endValue;
-                }}
-            }}
-            
-            requestAnimationFrame(updateNumber);
-        }}
-        
+        // Simple update function without animations to prevent conflicts
         function updateDashboard() {{
-            // Add loading indicator with animation
+            // Add loading indicator
             const header = document.querySelector('.header p');
             if (header) {{
                 const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
-                header.innerHTML = originalText + ' • <span style="color: #10b981; animation: pulse 1s infinite;">UPDATING</span>';
+                header.innerHTML = originalText + ' • <span style="color: #10b981;">UPDATING</span>';
             }}
             
             fetch('/credit_checker_report.html', {{
@@ -831,10 +819,9 @@ def generate_html_dashboard():
                 const parser = new DOMParser();
                 const newDoc = parser.parseFromString(html, 'text/html');
                 
-                // Update metric values with enhanced animations
+                // Update metric values directly without animations
                 const metrics = document.querySelectorAll('.metric-value');
                 const newMetrics = newDoc.querySelectorAll('.metric-value');
-                const metricLabels = document.querySelectorAll('.metric-label');
                 let hasChanges = false;
                 
                 metrics.forEach((metric, index) => {{
@@ -844,64 +831,13 @@ def generate_html_dashboard():
                         
                         if (oldValue !== newValue) {{
                             hasChanges = true;
-                            
-                            // Add updating class for visual feedback
-                            metric.classList.add('updating');
-                            if (metricLabels[index]) {{
-                                metricLabels[index].classList.add('updating');
-                            }}
-                            
-                            // Animate the number change
-                            setTimeout(() => {{
-                                animateNumber(metric, oldValue, newValue, 800);
-                                
-                                // Add changed class for final effect
-                                setTimeout(() => {{
-                                    metric.classList.remove('updating');
-                                    metric.classList.add('changed');
-                                    if (metricLabels[index]) {{
-                                        metricLabels[index].classList.remove('updating');
-                                    }}
-                                    
-                                    // Remove changed class after animation
-                                    setTimeout(() => {{
-                                        metric.classList.remove('changed');
-                                    }}, 1500);
-                                }}, 400);
-                            }}, 100);
+                            // Direct update without animation
+                            metric.textContent = newValue;
                         }}
                     }}
                 }});
                 
-                // Show update indicator with enhanced feedback
-                if (hasChanges) {{
-                    console.log('Dashboard updated with changes!');
-                    
-                    // Add a subtle notification
-                    const notification = document.createElement('div');
-                    notification.style.cssText = `
-                        position: fixed;
-                        top: 20px;
-                        right: 20px;
-                        background: #065f46;
-                        color: #10b981;
-                        padding: 10px 15px;
-                        border-radius: 5px;
-                        font-weight: 600;
-                        z-index: 1000;
-                        animation: slideInUp 0.5s ease-out;
-                        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-                    `;
-                    notification.textContent = 'Data Updated!';
-                    document.body.appendChild(notification);
-                    
-                    setTimeout(() => {{
-                        notification.style.animation = 'slideInUp 0.5s ease-out reverse';
-                        setTimeout(() => notification.remove(), 500);
-                    }}, 2000);
-                }}
-                
-                // Update table data with enhanced animations
+                // Update table data directly
                 const tableRows = document.querySelectorAll('.table tbody tr');
                 const newTableRows = newDoc.querySelectorAll('.table tbody tr');
                 
@@ -916,73 +852,67 @@ def generate_html_dashboard():
                                 const newValue = newCells[cellIndex].textContent.trim();
                                 
                                 if (oldValue !== newValue) {{
-                                    // Enhanced cell animation
-                                    cell.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-                                    cell.style.backgroundColor = '#065f46';
-                                    cell.style.transform = 'scale(1.02)';
-                                    cell.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.3)';
-                                    
-                                    setTimeout(() => {{
-                                        cell.textContent = newValue;
-                                        cell.style.backgroundColor = '#000000';
-                                        cell.style.transform = 'scale(1)';
-                                        cell.style.boxShadow = 'none';
-                                    }}, 300);
+                                    // Direct update without animation
+                                    cell.textContent = newValue;
                                 }}
                             }}
                         }});
                     }}
                 }});
                 
-                // Update timestamp with animation
+                // Update timestamp
                 const timestamp = document.querySelector('.header p');
                 const newTimestamp = newDoc.querySelector('.header p');
                 if (timestamp && newTimestamp) {{
-                    timestamp.style.transition = 'all 0.3s ease';
-                    timestamp.style.opacity = '0.7';
-                    setTimeout(() => {{
-                        timestamp.innerHTML = newTimestamp.innerHTML;
-                        timestamp.style.opacity = '1';
-                    }}, 150);
+                    timestamp.innerHTML = newTimestamp.innerHTML;
+                }}
+                
+                // Show simple notification if changes detected
+                if (hasChanges) {{
+                    console.log('Dashboard updated with changes!');
                 }}
                 
                 // Remove loading indicator
                 if (header) {{
-                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
-                header.innerHTML = originalText + ' • <span style="color: #10b981;">LIVE</span>';
+                    const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                    header.innerHTML = originalText + ' • <span style="color: #10b981;">LIVE</span>';
                 }}
             }})
             .catch(error => {{
                 console.log('Update failed:', error);
                 // Remove loading indicator on error
                 if (header) {{
-                const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
-                header.innerHTML = originalText + ' • <span style="color: #ef4444;">ERROR</span>';
+                    const originalText = header.textContent.replace(' • UPDATING', '').replace(' • LIVE', '');
+                    header.innerHTML = originalText + ' • <span style="color: #ef4444;">ERROR</span>';
                 }}
             }});
         }}
         
-        // Start auto-updates every 3 seconds
+        // Auto-update every 3 seconds
+        let updateInterval;
+        
         function startAutoUpdate() {{
             updateInterval = setInterval(updateDashboard, 3000);
         }}
         
-        // Stop auto-updates
         function stopAutoUpdate() {{
             if (updateInterval) {{
                 clearInterval(updateInterval);
             }}
         }}
         
-        // Start updates when page loads
+        // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {{
-            startAutoUpdate();
+            console.log('Dashboard loaded - auto-updating every 3 seconds');
             
             // Add visual indicator for live updates
             const header = document.querySelector('.header p');
             if (header) {{
                 header.innerHTML += ' • <span style="color: #10b981;">LIVE</span>';
             }}
+            
+            // Start auto-updates
+            startAutoUpdate();
         }});
         
         // Pause updates when page is not visible

@@ -12,8 +12,7 @@ from .web_utils import (
 )
 from .credit_checker import (
     matches_keyword_with_word_boundary, check_credit_keywords_in_parents,
-    check_caption_elements_for_credits, check_impressum_for_credits,
-    check_whole_page_html_for_credits
+    check_caption_elements_for_credits, check_impressum_for_credits
 )
 from .control_utils import (
     normalize_image_url, process_hits, reprocess_error_rows,
@@ -40,7 +39,6 @@ __all__ = [
     # Credit checking
     'matches_keyword_with_word_boundary', 'check_credit_keywords_in_parents',
     'check_caption_elements_for_credits', 'check_impressum_for_credits',
-    'check_whole_page_html_for_credits',
     # Control utilities
     'normalize_image_url', 'process_hits', 'reprocess_error_rows',
     'reprocess_no_keyword_hits', 'reprocess_all_successful_hits',

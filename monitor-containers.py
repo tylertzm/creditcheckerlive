@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Configuration
 CHECK_INTERVAL = 60  # Check every 60 seconds
-INACTIVITY_THRESHOLD = 600  # 10 minutes in seconds
+INACTIVITY_THRESHOLD = 1800  # 30 minutes in seconds
 DAILY_CSV_PATTERN = "daily_claims_*.csv"
 
 def get_latest_daily_csv():

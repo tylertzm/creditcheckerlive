@@ -44,7 +44,7 @@ except ImportError:
 VALID_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 
 # Overall results CSV file
-OVERALL_CSV = "overall_checked_claims.csv"
+# OVERALL_CSV constant removed - CSV writing handled by scraping.py
 
 # Import all functionality from library modules
 from library import (
@@ -63,7 +63,6 @@ from library import (
     # Credit checking
     matches_keyword_with_word_boundary, check_credit_keywords_in_parents,
     check_caption_elements_for_credits, check_impressum_for_credits,
-    check_whole_page_html_for_credits,
     # Upload utilities
     add_internal_comment, upload_screenshot_evidence_new_claims
 )
@@ -172,93 +171,8 @@ def save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, r
             os.remove(temp_file)
 
 
-def save_case_to_overall_csv(case_id, case_url, hit_number, page_url, image_url, results):
-    """Save case information to overall_checked_claims.csv with file locking"""
-    import fcntl
-    import tempfile
-    import shutil
-    
-    try:
-        # Create a lock file path
-        lock_file = f"{OVERALL_CSV}.lock"
-        
-        # Use file locking to prevent concurrent writes
-        with open(lock_file, 'w') as lock_f:
-            fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX)  # Exclusive lock
-            
-            try:
-                # Check if file exists to determine if we need headers
-                file_exists = os.path.exists(OVERALL_CSV)
-                
-                # Read existing data
-                existing_data = []
-                if file_exists:
-                    with open(OVERALL_CSV, 'r', encoding='utf-8') as f:
-                        reader = csv.DictReader(f)
-                        existing_data = list(reader)
-                
-                # Prepare new row data
-                fieldnames = [
-                    'case_id', 'case_url', 'hit_number', 'page_url', 'image_url',
-                    'image_found', 'keyword_found', 'keywords_list', 'credit_texts', 'keyword_highlight', 
-                    'error_status', 'screenshot_path', 'processed_at'
-                ]
-                
-                # Ensure all values are properly handled
-                credit_keywords = results.get('credit_keywords', []) or []
-                credit_texts = results.get('credit_texts', []) or []
-                error_msg = results.get('error', '') or ''
-                
-                # Truncate error message to prevent CSV row overflow
-                if error_msg and len(str(error_msg)) > 200:
-                    error_msg = str(error_msg)[:200] + "..."
-                
-                row_data = {
-                    'case_id': str(case_id) if case_id else '',
-                    'case_url': str(case_url) if case_url else '',
-                    'hit_number': str(hit_number) if hit_number else '',
-                    'page_url': str(page_url) if page_url else '',
-                    'image_url': str(image_url) if image_url else '',
-                    'image_found': bool(results.get('image_found', False)),
-                    'keyword_found': bool(credit_keywords),
-                    'keywords_list': ', '.join(str(k) for k in credit_keywords) if credit_keywords else '',
-                    'credit_texts': ', '.join(str(t) for t in credit_texts) if credit_texts else '',
-                    'keyword_highlight': str(results.get('highlight_url', '')) if results.get('highlight_url') else '',
-                    'error_status': 'Success' if not error_msg else str(error_msg),
-                    'screenshot_path': str(results.get('screenshot_path', '')) if results.get('screenshot_path') else '',
-                    'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-                
-                # Add new row to existing data
-                existing_data.append(row_data)
-                
-                # Write to temporary file first (atomic operation)
-                temp_file = f"{OVERALL_CSV}.tmp"
-                with open(temp_file, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=fieldnames)
-                    writer.writeheader()
-                    writer.writerows(existing_data)
-                    f.flush()
-                    os.fsync(f.fileno())  # Force write to disk
-                
-                # Atomically replace the original file
-                shutil.move(temp_file, OVERALL_CSV)
-                
-                print(f"💾 Case {case_id} hit {hit_number} saved to {OVERALL_CSV}")
-                
-                # Also save to daily CSV
-                save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, results)
-                
-            finally:
-                # Lock is automatically released when the file is closed
-                pass
-                
-    except Exception as e:
-        print(f"❌ Error saving case to overall CSV: {e}")
-        # Clean up temp file if it exists
-        temp_file = f"{OVERALL_CSV}.tmp"
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+# Removed save_case_to_overall_csv function to prevent duplicate CSV entries
+# CSV writing is now handled by scraping.py to avoid double-writes
 
 
 def check_image_credits(target_image_url, page_url, output_path=None, similarity_threshold=0.85, max_workers=10, case_url=None, hit_id=None):
@@ -382,13 +296,7 @@ def check_image_credits(target_image_url, page_url, output_path=None, similarity
         all_keywords.extend(caption_keywords)
         all_texts.extend(caption_texts)
         
-        # 3. Check whole page HTML
-        print("📍 Checking entire page HTML...")
-        page_keywords, page_texts = check_whole_page_html_for_credits(driver)
-        all_keywords.extend(page_keywords)
-        all_texts.extend(page_texts)
-        
-        # 4. Check image OCR (if image found)
+        # 3. Check image OCR (if image found)
         if image_element:
             print("📍 Checking image OCR...")
             try:
@@ -444,11 +352,8 @@ def check_image_credits(target_image_url, page_url, output_path=None, similarity
             except Exception as e:
                 print(f"⚠️ Error closing driver: {e}")
         
-        # Save case information to overall CSV
-        if case_url and hit_id:
-            # Extract case_id from case_url if not provided
-            case_id = case_url.split('/')[-1].split('?')[0] if case_url else "unknown"
-            save_case_to_overall_csv(case_id, case_url, hit_id, page_url, target_image_url, results)
+        # Note: CSV writing is handled by the calling function (scraping.py)
+        # to avoid duplicate entries
     
     return results
 
