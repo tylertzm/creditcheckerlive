@@ -4,7 +4,6 @@ Web scraping and driver utilities
 
 import time
 import os
-import requests
 from datetime import datetime
 from urllib.parse import urlparse
 from selenium import webdriver
@@ -412,56 +411,3 @@ def check_for_404_or_page_errors(driver):
         return None
 
 
-def quick_requests_based_credit_check(page_url):
-    """
-    Quick preliminary check using requests to fetch page HTML and search for credit keywords.
-    This is much faster than launching a browser and can help identify potential credits early.
-    
-    Args:
-        page_url (str): URL of the webpage to check
-    
-    Returns:
-        list: Found credit keywords (empty list if none found or if request fails)
-    """
-    found_keywords = []
-    
-    try:
-        print(f"   📡 Fetching page content from {page_url[:60]}...")
-        
-        # Set up headers to mimic a real browser
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        }
-        
-        # Fetch the page content
-        response = requests.get(page_url, headers=headers)
-        response.raise_for_status()
-        
-        # Get the page content
-        page_content = response.text
-        print(f"   📄 Retrieved {len(page_content)} characters of HTML content")
-        
-        # Search for credit keywords in the HTML content
-        keywords_found = 0
-        for keyword in CREDIT_KEYWORDS:
-            if matches_keyword_with_word_boundary(keyword, page_content):
-                found_keywords.append(keyword)
-                keywords_found += 1
-                print(f"   🎯 Found potential credit keyword: '{keyword}'")
-        
-        if keywords_found > 0:
-            print(f"   ✅ Preliminary check found {keywords_found} potential credit keywords")
-        else:
-            print(f"   ⚠️ Preliminary check found no credit keywords in HTML")
-            
-    except requests.exceptions.RequestException as e:
-        print(f"   ❌ Request failed: {e}")
-    except Exception as e:
-        print(f"   ❌ Preliminary check error: {e}")
-    
-    return found_keywords
