@@ -31,12 +31,16 @@ def load_processed_claims():
     """Load already processed claims from overall_checked_claims.csv with file locking"""
     import fcntl
     import time
+    from collections import defaultdict
     
     processed_claims = set()
+    case_hit_counts = defaultdict(int)  # Track total hits per case
+    case_processed_counts = defaultdict(int)  # Track processed hits per case
+    fully_processed_cases = set()
     
     if not os.path.exists(OVERALL_CSV):
         print(f"[INFO] No {OVERALL_CSV} found, will process all claims")
-        return processed_claims
+        return processed_claims, fully_processed_cases
     
     # Retry mechanism for file locking
     max_retries = 5
@@ -57,10 +61,42 @@ def load_processed_claims():
                         case_id = row.get('case_id', '').strip()
                         hit_number = row.get('hit_number', '').strip()
                         if case_id and hit_number:
-                            processed_claims.add(f"{case_id}_{hit_number}")
+                            claim_key = f"{case_id}_{hit_number}"
+                            processed_claims.add(claim_key)
+                            
+                            # Track hit counts for this case
+                            case_processed_counts[case_id] += 1
+                    
+                    # Now check which cases are fully processed by comparing with expected hit counts
+                    # We need to read the file again to get all cases and their hit counts
+                    f.seek(0)  # Reset file pointer
+                    reader = csv.DictReader(f)
+                    current_case = None
+                    current_case_hits = set()
+                    
+                    for row in reader:
+                        case_id = row.get('case_id', '').strip()
+                        hit_number = row.get('hit_number', '').strip()
+                        
+                        if case_id != current_case:
+                            # Process previous case if it exists
+                            if current_case and len(current_case_hits) == case_processed_counts[current_case]:
+                                fully_processed_cases.add(current_case)
+                            
+                            # Start new case
+                            current_case = case_id
+                            current_case_hits = set()
+                        
+                        if hit_number:
+                            current_case_hits.add(hit_number)
+                    
+                    # Process the last case
+                    if current_case and len(current_case_hits) == case_processed_counts[current_case]:
+                        fully_processed_cases.add(current_case)
                 
                 print(f"[INFO] Loaded {len(processed_claims)} already processed claims from {OVERALL_CSV}")
-                return processed_claims
+                print(f"[INFO] Identified {len(fully_processed_cases)} fully processed cases")
+                return processed_claims, fully_processed_cases
                 
         except (IOError, OSError) as e:
             if attempt < max_retries - 1:
@@ -69,12 +105,39 @@ def load_processed_claims():
                 retry_delay *= 2  # Exponential backoff
             else:
                 print(f"[WARN] Could not acquire lock after {max_retries} attempts: {e}")
-                return processed_claims
+                return processed_claims, fully_processed_cases
         except Exception as e:
             print(f"[WARN] Error loading processed claims: {e}")
-            return processed_claims
+            return processed_claims, fully_processed_cases
     
-    return processed_claims
+    return processed_claims, fully_processed_cases
+
+def save_fully_processed_cases(fully_processed_cases):
+    """Save the set of fully processed cases to a file"""
+    try:
+        with open('fully_processed_cases.txt', 'w') as f:
+            for case_id in sorted(fully_processed_cases):
+                f.write(f"{case_id}\n")
+        print(f"[INFO] Saved {len(fully_processed_cases)} fully processed cases")
+    except Exception as e:
+        print(f"[WARN] Could not save fully processed cases: {e}")
+
+def load_fully_processed_cases():
+    """Load the set of fully processed cases from file"""
+    fully_processed_cases = set()
+    try:
+        with open('fully_processed_cases.txt', 'r') as f:
+            for line in f:
+                case_id = line.strip()
+                if case_id:
+                    fully_processed_cases.add(case_id)
+        print(f"[INFO] Loaded {len(fully_processed_cases)} fully processed cases from file")
+    except FileNotFoundError:
+        print(f"[INFO] No fully processed cases file found, starting fresh")
+    except Exception as e:
+        print(f"[WARN] Could not load fully processed cases: {e}")
+    
+    return fully_processed_cases
 
 # Get number of claims from command line argument
 if len(sys.argv) < 2:
@@ -174,7 +237,7 @@ def login(driver):
     time.sleep(3)
     print("[INFO] Login completed, proceeding to claims...")
 
-def get_qualifying_cases(driver, target_count, processed_claims, filter_type=None):
+def get_qualifying_cases(driver, target_count, processed_claims, fully_processed_cases, filter_type=None):
     """Get qualifying cases from the review list"""
     qualifying_cases = []
     
@@ -226,6 +289,11 @@ def get_qualifying_cases(driver, target_count, processed_claims, filter_type=Non
                     
                     case_id = extract_case_id_from_url(claim_url)
                     
+                    # Skip cases that have been fully processed
+                    if case_id in fully_processed_cases:
+                        print(f"[SKIP] Case {case_id} already fully processed, skipping...")
+                        continue
+                    
                     # Apply even/odd filtering if specified
                     if filter_type:
                         case_id_num = int(case_id) if case_id.isdigit() else 0
@@ -259,9 +327,18 @@ def get_qualifying_cases(driver, target_count, processed_claims, filter_type=Non
                     print(f"[WARN] Could not save progress reset: {e}")
                 continue  # Continue the loop from page 1
             else:
-                # Normal case: there is a next button, so jump to random page
-                current_page = random.randint(20, 200)
-                print(f"[INFO] Jumping to random page: {current_page}")
+                # Improved randomization: ensure systematic coverage first, then randomize
+                if current_page < 20:
+                    # Process pages sequentially until page 20
+                    current_page += 1
+                    print(f"[INFO] Moving to next sequential page: {current_page}")
+                else:
+                    # After page 20, use controlled randomization to avoid skipping ranges
+                    # Choose from a smaller, more focused range to ensure better coverage
+                    min_page = max(15, current_page - 10)  # Don't go too far back
+                    max_page = min(100, current_page + 50)  # Don't jump too far forward
+                    current_page = random.randint(min_page, max_page)
+                    print(f"[INFO] Jumping to nearby random page: {current_page} (range: {min_page}-{max_page})")
         except:
             print(f"[INFO] No next button found on page {current_page}, cycling back to page 1")
             current_page = 1
@@ -325,7 +402,7 @@ def update_daily_claims(case_rows):
     try:
         # Get today's date for the daily file
         today = datetime.now().strftime('%Y-%m-%d')
-        daily_filename = f'/app/data/daily_claims_{today}.csv'
+        daily_filename = f'daily_claims_{today}.csv'
         
         # Use file locking to prevent concurrent writes
         with open(daily_filename, 'a', newline='', encoding='utf-8') as f:
@@ -492,7 +569,7 @@ def process_case(driver, claim_url, case_id, processed_claims):
             print(f"[ERROR] Error processing hit: {e}")
             continue
     
-    return case_rows
+    return case_rows, len(hit_h4s)
 
 
 def main():
@@ -513,8 +590,11 @@ def main():
     print(f"[INFO] No cycles - continuous processing mode")
     
     # Load already processed claims once at startup
-    processed_claims = load_processed_claims()
+    processed_claims, csv_fully_processed_cases = load_processed_claims()
+    file_fully_processed_cases = load_fully_processed_cases()
+    fully_processed_cases = csv_fully_processed_cases.union(file_fully_processed_cases)
     print(f"[INFO] Loaded {len(processed_claims)} already processed claims from overall_checked_claims.csv")
+    print(f"[INFO] Identified {len(fully_processed_cases)} fully processed cases to skip")
     
     # Setup browser driver once
     driver = setup_chrome_driver()
@@ -528,7 +608,7 @@ def main():
             print(f"\n[INFO] ===== Checking for new claims =====")
             
             # Get qualifying cases (this will automatically skip already processed ones)
-            qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE, processed_claims, filter_type)
+            qualifying_cases = get_qualifying_cases(driver, CLAIMS_TO_SCRAPE, processed_claims, fully_processed_cases, filter_type)
             
             if not qualifying_cases:
                 print(f"[INFO] No new qualifying cases found. Waiting 10 seconds before next check...")
@@ -555,7 +635,7 @@ def main():
                     print(f"[INFO] Processing case {i}/{len(qualifying_cases)}: {case_id}")
                     
                     try:
-                        case_rows = process_case(driver, claim_url, case_id, processed_claims)
+                        case_rows, total_hits_found = process_case(driver, claim_url, case_id, processed_claims)
                         
                         if case_rows:  # Only process if we have results
                             writer.writerows(case_rows)
@@ -563,10 +643,22 @@ def main():
                             all_rows.extend(case_rows)
                             
                             # Update processed_claims set with all hits from this case
+                            processed_hits_in_case = 0
                             for row in case_rows:
                                 hit_number = row[2]  # hit_number is the 3rd column
                                 claim_key = f"{case_id}_{hit_number}"
                                 processed_claims.add(claim_key)
+                                processed_hits_in_case += 1
+                            
+                            # Check if this case is now fully processed
+                            # Count how many hits from this case are in processed_claims
+                            case_hit_keys = {f"{case_id}_{hit_num}" for hit_num in range(1, total_hits_found + 1)}
+                            processed_hits_for_case = case_hit_keys.intersection(processed_claims)
+                            
+                            if len(processed_hits_for_case) == total_hits_found:
+                                fully_processed_cases.add(case_id)
+                                print(f"[INFO] Case {case_id} is now fully processed ({total_hits_found} hits)")
+                                save_fully_processed_cases(fully_processed_cases)
                             
                             # Update both overall and daily claims CSV files immediately after processing this case
                             print(f"[INFO] Updating overall_checked_claims.csv with {len(case_rows)} rows from case {case_id}")

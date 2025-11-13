@@ -16,7 +16,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image, ImageDraw, ImageFont
-import requests
 import numpy as np
 import cv2
 from io import BytesIO
@@ -59,7 +58,7 @@ from library import (
     # Web utilities
     handle_initial_page_setup, setup_driver, create_highlighted_credit_link,
     take_full_screenshot_with_timestamp, wait_for_images_to_load,
-    check_for_404_or_page_errors, quick_requests_based_credit_check,
+    check_for_404_or_page_errors,
     # Credit checking
     matches_keyword_with_word_boundary, check_credit_keywords_in_parents,
     check_caption_elements_for_credits, check_impressum_for_credits,
@@ -77,7 +76,7 @@ def save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, r
     
     # Create daily CSV filename with date
     today = datetime.now().strftime('%Y-%m-%d')
-    daily_csv = f"/app/data/daily_claims_{today}.csv"
+    daily_csv = f"daily_claims_{today}.csv"
     
     # Create the daily CSV file if it doesn't exist
     if not os.path.exists(daily_csv):
@@ -210,15 +209,6 @@ def check_image_credits(target_image_url, page_url, output_path=None, similarity
     try:
         print(f"🔍 Starting credit check for image: {target_image_url}")
         print(f"🌐 Page URL: {page_url}")
-        
-        # Quick preliminary check using requests (much faster)
-        print("⚡ Performing quick preliminary check...")
-        preliminary_keywords = quick_requests_based_credit_check(page_url)
-        if preliminary_keywords:
-            print(f"✅ Preliminary check found {len(preliminary_keywords)} potential credits - proceeding with full analysis")
-        else:
-            print("⚠️ Preliminary check found no credits - proceeding with full analysis anyway")
-        
         # Setup Chrome driver
         print("🚀 Setting up Chrome driver...")
         driver = setup_driver()
@@ -296,7 +286,7 @@ def check_image_credits(target_image_url, page_url, output_path=None, similarity
         all_keywords.extend(caption_keywords)
         all_texts.extend(caption_texts)
         
-        # 3. Check image OCR (if image found)
+        # 4. Check image OCR (if image found)
         if image_element:
             print("📍 Checking image OCR...")
             try:

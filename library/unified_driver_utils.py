@@ -178,8 +178,12 @@ def create_chrome_options(headless=True, extra_args=None):
     # Security and privacy
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-plugins')
-    options.add_argument('--disable-images')  # Faster loading
-    options.add_argument('--disable-javascript')  # Only if not needed
+    # Only disable images and JavaScript when running in headless mode to
+    # improve speed in CI/container environments. For a visible (headful)
+    # browser we want images and JS enabled so pages render correctly.
+    if headless:
+        options.add_argument('--disable-images')  # Faster loading
+        options.add_argument('--disable-javascript')  # Only if not needed
     
     # Docker-specific optimizations
     env = detect_environment()
@@ -202,7 +206,7 @@ def create_chrome_options(headless=True, extra_args=None):
     
     return options
 
-def setup_driver(headless=True, extra_chrome_args=None):
+def setup_driver(headless=False, extra_chrome_args=None):
     """
     Set up ChromeDriver with unified configuration
     

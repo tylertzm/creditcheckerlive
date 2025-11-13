@@ -8,7 +8,7 @@ set -e
 
 CONTAINER_EVEN="credit-checker-even"
 CONTAINER_ODD="credit-checker-odd"
-BATCH_SIZE=${BATCH_SIZE:-50}  # Look for 50 claims per cycle instead of 5!
+BATCH_SIZE=${BATCH_SIZE:-10}  # Look for 10 claims per cycle instead of 5!
 
 case "${1:-start}" in
     start)
@@ -18,9 +18,13 @@ case "${1:-start}" in
         echo "🔍 Odd container: Processing odd case IDs"
         echo ""
         
-        # Build the Docker image
-        echo "🔨 Building Docker image..."
-        docker build -t credit-checker-scraping .
+        # Build the Docker image (only if it doesn't exist)
+        if docker image inspect credit-checker-scraping >/dev/null 2>&1; then
+            echo "✅ Docker image already exists, skipping build..."
+        else
+            echo "🔨 Building Docker image..."
+            docker build -t credit-checker-scraping .
+        fi
         
         # Start even container
         echo "🏃 Starting even container..."
@@ -45,7 +49,7 @@ case "${1:-start}" in
           -v "$(pwd)/logs:/app/logs" \
           -v "$(pwd)/overall_checked_claims.csv:/app/overall_checked_claims.csv" \
           -v "$(pwd)/claims.csv:/app/claims.csv" \
-          -v "$(pwd)/daily_claims_$(date +%Y-%m-%d).csv:/app/daily_claims_$(date +%Y-%m-%d).csv" \
+          -v "$(pwd):/app/data" \
           --shm-size=2g \
           --security-opt seccomp:unconfined \
           -e BATCH_SIZE=$BATCH_SIZE \

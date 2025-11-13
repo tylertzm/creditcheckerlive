@@ -8,10 +8,10 @@ from .image_utils import (
 from .web_utils import (
     handle_initial_page_setup, setup_driver, create_highlighted_credit_link,
     take_full_screenshot_with_timestamp, wait_for_images_to_load,
-    check_for_404_or_page_errors, quick_requests_based_credit_check
+    check_for_404_or_page_errors
 )
 from .credit_checker import (
-    matches_keyword_with_word_boundary, check_credit_keywords_in_parents,
+    matches_keyword_with_word_boundary, find_credit_keywords_in_text, check_credit_keywords_in_parents,
     check_caption_elements_for_credits, check_impressum_for_credits
 )
 from .control_utils import (
@@ -37,7 +37,7 @@ __all__ = [
     'take_full_screenshot_with_timestamp', 'wait_for_images_to_load',
     'check_for_404_or_page_errors', 'quick_requests_based_credit_check',
     # Credit checking
-    'matches_keyword_with_word_boundary', 'check_credit_keywords_in_parents',
+    'matches_keyword_with_word_boundary', 'find_credit_keywords_in_text', 'check_credit_keywords_in_parents',
     'check_caption_elements_for_credits', 'check_impressum_for_credits',
     # Control utilities
     'normalize_image_url', 'process_hits', 'reprocess_error_rows',

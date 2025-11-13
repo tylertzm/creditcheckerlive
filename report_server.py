@@ -161,7 +161,7 @@ def generate_html_dashboard():
 
     # Calculate totals
     total_cases = sum(stat['stats']['data_lines'] for stat in daily_stats) if daily_stats else 0
-    total_overall = overall_stats['data_lines'] if overall_stats else 0
+    total_overall = overall_stats.get('data_lines', 0) if overall_stats else 0
     total_archived = sum(stat['stats']['data_lines'] for stat in archived_stats) if archived_stats else 0
 
     # Generate HTML

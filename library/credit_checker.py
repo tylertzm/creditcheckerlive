@@ -7,11 +7,57 @@ import re
 from selenium.webdriver.common.by import By
 from .keywords import CREDIT_KEYWORDS
 
+# Pre-compiled regex patterns for performance optimization
+_COMPILED_KEYWORD_PATTERNS = {}
 
+def _get_compiled_pattern(keyword):
+    """Get or create a compiled regex pattern for a keyword"""
+    if keyword not in _COMPILED_KEYWORD_PATTERNS:
+        escaped_keyword = re.escape(keyword.lower())
+        pattern = r'\b' + escaped_keyword + r'\b'
+        _COMPILED_KEYWORD_PATTERNS[keyword] = re.compile(pattern, re.IGNORECASE)
+    return _COMPILED_KEYWORD_PATTERNS[keyword]
+
+def find_credit_keywords_in_text(text, keywords=None):
+    """
+    Optimized function to find all credit keywords in text.
+    Returns found keywords and their positions for better performance.
+    
+    Args:
+        text (str): The text to search in
+        keywords (list): List of keywords to search for (defaults to CREDIT_KEYWORDS)
+    
+    Returns:
+        list: Found keywords
+    """
+    if not text:
+        return []
+    
+    if keywords is None:
+        keywords = CREDIT_KEYWORDS
+    
+    found_keywords = []
+    text_lower = text.lower()  # Convert once for case-insensitive matching
+    
+    # Quick substring check first (much faster than regex)
+    candidate_keywords = []
+    for keyword in keywords:
+        if keyword.lower() in text_lower:
+            candidate_keywords.append(keyword)
+    
+    # Only do regex validation for candidates
+    for keyword in candidate_keywords:
+        if matches_keyword_with_word_boundary(keyword, text):
+            found_keywords.append(keyword)
+    
+    return found_keywords
+    
 def matches_keyword_with_word_boundary(keyword, text):
     """
     Check if keyword matches in text using word boundaries to avoid false positives.
     This prevents matching 'vii' within 'viitoare' but allows matching 'vii' in '(vii)' or 'vii,'.
+    
+    Optimized version using pre-compiled regex patterns.
     
     Args:
         keyword (str): The keyword to search for
@@ -23,14 +69,9 @@ def matches_keyword_with_word_boundary(keyword, text):
     if not keyword or not text:
         return False
     
-    # Use standard word boundaries which are more reliable
-    # \b matches between word characters (alphanumeric + underscore) and non-word characters
-    # This should properly handle cases like "dpa" in "/dpa/" while avoiding "vii" in "viitoare"
-    escaped_keyword = re.escape(keyword.lower())
-    pattern = r'\b' + escaped_keyword + r'\b'
-    
-    # Search case-insensitively
-    return bool(re.search(pattern, text, re.IGNORECASE))
+    # Use pre-compiled pattern for better performance
+    pattern = _get_compiled_pattern(keyword)
+    return bool(pattern.search(text))
 
 
 def check_credit_keywords_in_parents(driver, image_element):
@@ -115,15 +156,15 @@ def check_credit_keywords_in_parents(driver, image_element):
             
             print(f"   Collected {len(all_texts)} text elements from scrolling")
             
-            # Check all collected text for credit keywords
+            # Check all collected text for credit keywords (optimized batch processing)
             for text_data in all_texts:
                 text_content = text_data['text']
-                for keyword in CREDIT_KEYWORDS:
-                    if matches_keyword_with_word_boundary(keyword, text_content):
-                        found_keywords.append(f"Scrolled Text: {keyword}")
-                        found_texts.append(f"Scrolled Text ({text_data['element']}): {text_content[:200]}...")
-                        print(f"   Found '{keyword}' in scrolled text: {text_content[:100]}...")
-                        break  # Only count once per text element
+                found_in_text = find_credit_keywords_in_text(text_content)
+                for keyword in found_in_text:
+                    found_keywords.append(f"Scrolled Text: {keyword}")
+                    found_texts.append(f"Scrolled Text ({text_data['element']}): {text_content[:200]}...")
+                    print(f"   Found '{keyword}' in scrolled text: {text_content[:100]}...")
+                    break  # Only count once per text element
             
         except Exception as e:
             print(f"   ⚠️ Error in scroll-based text search: {e}")
@@ -259,15 +300,15 @@ def check_caption_elements_for_credits(driver, image_element=None):
                     return captions;
                 """, image_element, caption_selectors)
                 
-                # Check these nearby captions first
+                # Check these nearby captions first (optimized)
                 for caption_data in nearby_captions:
                     text_content = caption_data['text']
-                    for keyword in CREDIT_KEYWORDS:
-                        if matches_keyword_with_word_boundary(keyword, text_content):
-                            found_keywords.append(f"Image Caption: {keyword}")
-                            found_texts.append(f"Image Caption ({caption_data['selector']}): {text_content[:200]}...")
-                            print(f"   Found '{keyword}' in image caption: {text_content[:100]}...")
-                            break  # Only count once per caption
+                    found_in_caption = find_credit_keywords_in_text(text_content)
+                    for keyword in found_in_caption:
+                        found_keywords.append(f"Image Caption: {keyword}")
+                        found_texts.append(f"Image Caption ({caption_data['selector']}): {text_content[:200]}...")
+                        print(f"   Found '{keyword}' in image caption: {text_content[:100]}...")
+                        break  # Only count once per caption
                             
             except Exception as e:
                 print(f"   ⚠️ Error searching captions near image: {e}")
@@ -299,19 +340,19 @@ def check_caption_elements_for_credits(driver, image_element=None):
             return captions;
         """, caption_selectors)
         
-        # Check all captions for keywords
+        # Check all captions for keywords (optimized)
         page_caption_count = 0
         for caption_data in all_captions:
             text_content = caption_data['text']
-            for keyword in CREDIT_KEYWORDS:
-                if matches_keyword_with_word_boundary(keyword, text_content):
-                    keyword_entry = f"Page Caption: {keyword}"
-                    if keyword_entry not in found_keywords:  # Avoid duplicates
-                        found_keywords.append(keyword_entry)
-                        found_texts.append(f"Page Caption ({caption_data['selector']}): {text_content[:200]}...")
-                        page_caption_count += 1
-                        print(f"   Found '{keyword}' in page caption: {text_content[:100]}...")
-                        break  # Only count once per caption
+            found_in_caption = find_credit_keywords_in_text(text_content)
+            for keyword in found_in_caption:
+                keyword_entry = f"Page Caption: {keyword}"
+                if keyword_entry not in found_keywords:  # Avoid duplicates
+                    found_keywords.append(keyword_entry)
+                    found_texts.append(f"Page Caption ({caption_data['selector']}): {text_content[:200]}...")
+                    page_caption_count += 1
+                    print(f"   Found '{keyword}' in page caption: {text_content[:100]}...")
+                    break  # Only count once per caption
         
         print(f"📍 Found {len(found_keywords)} credit keywords in caption elements")
         
@@ -418,12 +459,10 @@ def check_impressum_for_credits(driver, original_url, case_url=None, hit_id=None
             # First attempt: Extract all text content from the impressum page
             page_text = driver.find_element(By.TAG_NAME, "body").text
             
-            # Check for credit keywords in the impressum text
-            found_count = 0
-            for keyword in CREDIT_KEYWORDS:
-                if matches_keyword_with_word_boundary(keyword, page_text):
-                    impressum_keywords.append(keyword)  # Return clean keyword for CSV integration
-                    found_count += 1
+            # Check for credit keywords in the impressum text (optimized)
+            found_keywords_in_impressum = find_credit_keywords_in_text(page_text)
+            found_count = len(found_keywords_in_impressum)
+            impressum_keywords.extend(found_keywords_in_impressum)
             
             if found_count > 0:
                 print(f"🎯 Found {found_count} credit keywords in {impressum_type} page HTML text!")

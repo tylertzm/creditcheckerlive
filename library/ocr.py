@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 from io import BytesIO
 from .keywords import CREDIT_KEYWORDS
-from .credit_checker import matches_keyword_with_word_boundary
+from .credit_checker import matches_keyword_with_word_boundary, find_credit_keywords_in_text
 
 # OCR imports
 try:
@@ -98,12 +98,12 @@ def check_image_ocr_for_credits(image_url, max_attempts=2):
                     print(f"⚠️ Tesseract OCR failed: {e}")
                     extracted_text = ""
             
-            # Check for credit keywords in extracted text
+            # Check for credit keywords in extracted text (optimized)
             if extracted_text:
-                for keyword in CREDIT_KEYWORDS:
-                    if matches_keyword_with_word_boundary(keyword, extracted_text):
-                        found_keywords.append(f"OCR: {keyword}")
-                        print(f"🎯 Found credit keyword in image text: {keyword}")
+                found_in_ocr = find_credit_keywords_in_text(extracted_text)
+                for keyword in found_in_ocr:
+                    found_keywords.append(f"OCR: {keyword}")
+                    print(f"🎯 Found credit keyword in image text: {keyword}")
             
             # Success - break out of retry loop
             break

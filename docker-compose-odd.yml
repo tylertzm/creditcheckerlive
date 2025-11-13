@@ -7,7 +7,6 @@ services:
     environment:
       - DISPLAY=:99
       - PYTHONUNBUFFERED=1
-      - BATCH_SIZE=5  # Number of claims to process per cycle
       - FILTER_TYPE=odd
     volumes:
       # Mount the output directory to persist results
