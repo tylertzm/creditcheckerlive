@@ -45,6 +45,40 @@ VALID_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 # Overall results CSV file
 # OVERALL_CSV constant removed - CSV writing handled by scraping.py
 
+def sanitize_error_for_csv(error_msg):
+    """
+    Sanitize error messages to remove stacktraces and keep only meaningful error info.
+    Prevents multi-line stacktraces from appearing in CSV files.
+    """
+    if not error_msg:
+        return ""
+    
+    # Convert to string
+    error_str = str(error_msg)
+    
+    # Remove stacktraces - take only first line before "Stacktrace:"
+    if "Stacktrace:" in error_str:
+        error_str = error_str.split("Stacktrace:")[0].strip()
+    
+    # Remove session info
+    if "(Session info:" in error_str:
+        error_str = error_str.split("(Session info:")[0].strip()
+    
+    # Remove line breaks and excessive whitespace
+    error_str = error_str.replace('\n', ' ').replace('\r', ' ')
+    error_str = re.sub(r'\s+', ' ', error_str).strip()
+    
+    # Limit length to prevent CSV bloat
+    max_length = 200
+    if len(error_str) > max_length:
+        error_str = error_str[:max_length] + "..."
+    
+    # If empty after sanitization, provide generic message
+    if not error_str:
+        error_str = "Processing error"
+    
+    return error_str
+
 # Import all functionality from library modules
 from library import (
     # Keywords
@@ -121,9 +155,9 @@ def save_case_to_daily_csv(case_id, case_url, hit_number, page_url, image_url, r
                 credit_texts = results.get('credit_texts', []) or []
                 error_msg = results.get('error', '') or ''
                 
-                # Truncate error message to prevent CSV row overflow
-                if error_msg and len(str(error_msg)) > 200:
-                    error_msg = str(error_msg)[:200] + "..."
+                # Sanitize error message to remove stacktraces
+                if error_msg:
+                    error_msg = sanitize_error_for_csv(error_msg)
                 
                 row_data = {
                     'case_id': str(case_id) if case_id else '',

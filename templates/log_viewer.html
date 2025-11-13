@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Container Log Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #4ec9b0;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        
+        .container-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .container-card {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 6px;
+            padding: 15px;
+        }
+        
+        .container-name {
+            font-size: 16px;
+            color: #4ec9b0;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .container-status {
+            font-size: 12px;
+            color: #858585;
+            margin-bottom: 10px;
+        }
+        
+        .status-running {
+            color: #4ec9b0;
+        }
+        
+        .status-stopped {
+            color: #f48771;
+        }
+        
+        .btn {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 5px;
+            margin-top: 5px;
+        }
+        
+        .btn:hover {
+            background: #1177bb;
+        }
+        
+        .btn-danger {
+            background: #c5524a;
+        }
+        
+        .btn-danger:hover {
+            background: #d16969;
+        }
+        
+        .log-viewer {
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #3e3e42;
+        }
+        
+        .log-title {
+            font-size: 14px;
+            color: #4ec9b0;
+        }
+        
+        .log-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .log-content {
+            background: #0e0e0e;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            height: 600px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .log-line {
+            margin-bottom: 2px;
+        }
+        
+        .log-line.error {
+            color: #f48771;
+        }
+        
+        .log-line.warn {
+            color: #dcdcaa;
+        }
+        
+        .log-line.info {
+            color: #4ec9b0;
+        }
+        
+        .log-line.success {
+            color: #608b4e;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #3e3e42;
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        .timestamp {
+            color: #858585;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐳 Container Log Viewer</h1>
+    
+    <div class="container-grid" id="containerGrid">
+        {% for container in containers %}
+        <div class="container-card">
+            <div class="container-name">{{ container }}</div>
+            <div class="container-status" id="status-{{ container }}">Loading...</div>
+            <button class="btn" onclick="viewLogs('{{ container }}')">View Logs</button>
+            <button class="btn btn-danger" onclick="restartContainer('{{ container }}')">Restart</button>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="log-viewer" id="logViewer" style="display: none;">
+        <div class="log-header">
+            <div class="log-title" id="logTitle">Container Logs</div>
+            <div class="log-controls">
+                <button class="btn" onclick="toggleAutoScroll()">
+                    <span id="autoScrollText">Auto-scroll: ON</span>
+                </button>
+                <button class="btn" onclick="clearLogs()">Clear</button>
+                <button class="btn btn-danger" onclick="closeLogs()">Close</button>
+            </div>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+    
+    <script>
+        let currentContainer = null;
+        let eventSource = null;
+        let autoScroll = true;
+        
+        // Update container status
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    Object.keys(data).forEach(container => {
+                        const statusEl = document.getElementById(`status-${container}`);
+                        if (statusEl) {
+                            const info = data[container];
+                            statusEl.textContent = info.status;
+                            statusEl.className = 'container-status ' + 
+                                (info.state === 'running' ? 'status-running' : 'status-stopped');
+                        }
+                    });
+                })
+                .catch(error => console.error('Error updating status:', error));
+        }
+        
+        // View logs for a container
+        function viewLogs(container) {
+            currentContainer = container;
+            document.getElementById('logViewer').style.display = 'block';
+            document.getElementById('logTitle').textContent = `Logs: ${container}`;
+            document.getElementById('logContent').innerHTML = '';
+            
+            // Close existing stream
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            // Start new stream
+            eventSource = new EventSource(`/stream/${container}`);
+            
+            eventSource.onmessage = function(event) {
+                addLogLine(event.data);
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+                addLogLine('Connection lost. Reconnecting...');
+            };
+        }
+        
+        // Add log line with syntax highlighting
+        function addLogLine(line) {
+            const logContent = document.getElementById('logContent');
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'log-line';
+            
+            // Add timestamp
+            const now = new Date().toLocaleTimeString();
+            const timestamp = document.createElement('span');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = `[${now}]`;
+            lineDiv.appendChild(timestamp);
+            
+            // Colorize based on content
+            const text = document.createTextNode(line);
+            if (line.includes('ERROR') || line.includes('Error') || line.includes('FAIL')) {
+                lineDiv.classList.add('error');
+            } else if (line.includes('WARN') || line.includes('Warning')) {
+                lineDiv.classList.add('warn');
+            } else if (line.includes('INFO') || line.includes('[INFO]')) {
+                lineDiv.classList.add('info');
+            } else if (line.includes('SUCCESS') || line.includes('✅') || line.includes('✓')) {
+                lineDiv.classList.add('success');
+            }
+            
+            lineDiv.appendChild(text);
+            logContent.appendChild(lineDiv);
+            
+            // Auto-scroll
+            if (autoScroll) {
+                logContent.scrollTop = logContent.scrollHeight;
+            }
+        }
+        
+        // Toggle auto-scroll
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            document.getElementById('autoScrollText').textContent = 
+                `Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+        }
+        
+        // Clear logs
+        function clearLogs() {
+            document.getElementById('logContent').innerHTML = '';
+        }
+        
+        // Close log viewer
+        function closeLogs() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            document.getElementById('logViewer').style.display = 'none';
+            currentContainer = null;
+        }
+        
+        // Restart container
+        function restartContainer(container) {
+            if (!confirm(`Restart container ${container}?`)) {
+                return;
+            }
+            
+            fetch(`/api/restart/${container}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Container ${container} restarted successfully`);
+                        updateStatus();
+                    } else {
+                        alert(`Error: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error restarting container: ${error}`);
+                });
+        }
+        
+        // Update status every 5 seconds
+        updateStatus();
+        setInterval(updateStatus, 5000);
+    </script>
+</body>
+</html>

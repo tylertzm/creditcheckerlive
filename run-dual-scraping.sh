@@ -8,7 +8,11 @@ set -e
 
 CONTAINER_EVEN="credit-checker-even"
 CONTAINER_ODD="credit-checker-odd"
+CONTAINER_LOG_SERVER="credit-checker-logs"
+CONTAINER_REPORT_SERVER="credit-checker-report"
 BATCH_SIZE=${BATCH_SIZE:-10}  # Look for 10 claims per cycle instead of 5!
+LOG_SERVER_PORT=8888
+REPORT_SERVER_PORT=5000
 
 case "${1:-start}" in
     start)
@@ -16,6 +20,8 @@ case "${1:-start}" in
         echo "📊 Batch size: $BATCH_SIZE claims per cycle per container"
         echo "🔍 Even container: Processing even case IDs"
         echo "🔍 Odd container: Processing odd case IDs"
+        echo "🌐 Log server: http://localhost:$LOG_SERVER_PORT"
+        echo "📊 Report dashboard: http://localhost:$REPORT_SERVER_PORT"
         echo ""
         
         # Build the Docker image (only if it doesn't exist)
@@ -56,9 +62,21 @@ case "${1:-start}" in
           -e FILTER_TYPE=odd \
           credit-checker-scraping
         
-        echo "✅ Both containers started successfully!"
+        # Start log server (runs on host, not in container, so it can access docker)
+        echo "🏃 Starting log server on port $LOG_SERVER_PORT..."
+        nohup python3 log_server.py > logs/log_server.log 2>&1 &
+        echo $! > logs/log_server.pid
+        
+        # Start report server (runs on host)
+        echo "🏃 Starting report server on port $REPORT_SERVER_PORT..."
+        nohup python3 report_server.py > logs/report_server.log 2>&1 &
+        echo $! > logs/report_server.pid
+        
+        echo "✅ All containers started successfully!"
         echo "📊 Use './run-dual-scraping.sh status' to view status"
         echo "📋 Use './run-dual-scraping.sh logs' to view logs"
+        echo "🌐 Log server: http://localhost:$LOG_SERVER_PORT"
+        echo "📊 Report dashboard: http://localhost:$REPORT_SERVER_PORT"
         echo "🛑 Use './run-dual-scraping.sh stop' to stop"
         ;;
         
@@ -66,7 +84,20 @@ case "${1:-start}" in
         echo "🛑 Stopping Credit Checker Dual Scraping..."
         docker stop $CONTAINER_EVEN $CONTAINER_ODD 2>/dev/null || echo "Containers not running"
         docker rm $CONTAINER_EVEN $CONTAINER_ODD 2>/dev/null || echo "Containers not found"
-        echo "✅ Both containers stopped!"
+        
+        # Stop log server
+        if [ -f logs/log_server.pid ]; then
+            kill $(cat logs/log_server.pid) 2>/dev/null || true
+            rm logs/log_server.pid
+        fi
+        
+        # Stop report server
+        if [ -f logs/report_server.pid ]; then
+            kill $(cat logs/report_server.pid) 2>/dev/null || true
+            rm logs/report_server.pid
+        fi
+        
+        echo "✅ All containers stopped!"
         ;;
         
     restart)

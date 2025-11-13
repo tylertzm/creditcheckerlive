@@ -17,6 +17,9 @@ def get_file_stats(filepath):
     """Get statistics for a CSV file"""
     if not os.path.exists(filepath):
         return None
+    
+    # Fix for large CSV fields
+    csv.field_size_limit(sys.maxsize)
 
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -29,11 +32,12 @@ def get_file_stats(filepath):
             reader = csv.DictReader(f)
             for row in reader:
                 # Check if essential fields are present (very lenient validation)
-                if (row.get('case_id') and
-                    row.get('case_url') and
-                    row.get('hit_number') and
-                    row.get('image_found') and
-                    row.get('keyword_found')):
+                # Allow empty strings for image_found and keyword_found
+                if (row.get('case_id') is not None and
+                    row.get('case_url') is not None and
+                    row.get('hit_number') is not None and
+                    'image_found' in row and
+                    'keyword_found' in row):
                     data_lines += 1
 
         # Get file size
@@ -53,11 +57,12 @@ def get_file_stats(filepath):
 
                     for row in reader:
                         # Check if essential fields are present (very lenient validation)
-                        if (row.get('case_id') and
-                            row.get('case_url') and
-                            row.get('hit_number') and
-                            row.get('image_found') and
-                            row.get('keyword_found')):
+                        # Allow empty strings for image_found and keyword_found
+                        if (row.get('case_id') is not None and
+                            row.get('case_url') is not None and
+                            row.get('hit_number') is not None and
+                            'image_found' in row and
+                            'keyword_found' in row):
                             valid_rows.append(row)
 
                     if valid_rows:
@@ -160,9 +165,9 @@ def generate_html_dashboard():
     recent_activity = get_recent_activity()
 
     # Calculate totals
-    total_cases = sum(stat['stats']['data_lines'] for stat in daily_stats) if daily_stats else 0
+    total_cases = sum(stat['stats'].get('data_lines', 0) for stat in daily_stats) if daily_stats else 0
     total_overall = overall_stats.get('data_lines', 0) if overall_stats else 0
-    total_archived = sum(stat['stats']['data_lines'] for stat in archived_stats) if archived_stats else 0
+    total_archived = sum(stat['stats'].get('data_lines', 0) for stat in archived_stats) if archived_stats else 0
 
     # Generate HTML
     html = f"""<!DOCTYPE html>
@@ -357,7 +362,7 @@ def generate_html_dashboard():
         html += f"""
                     <div class="file-item">
                         <span class="file-name">{stat['filename']}</span>
-                        <span class="file-stats">{stat['stats']['data_lines']:,} cases • {stat['stats']['file_size_mb']:.1f}MB</span>
+                        <span class="file-stats">{stat['stats'].get('data_lines', 0):,} cases • {stat['stats'].get('file_size_mb', 0):.1f}MB</span>
                     </div>"""
 
     html += f"""
@@ -391,7 +396,7 @@ def generate_html_dashboard():
         html += f"""
                     <div class="file-item">
                         <span class="file-name">{stat['filename']}</span>
-                        <span class="file-stats">{stat['stats']['data_lines']:,} cases • {stat['stats']['file_size_mb']:.1f}MB</span>
+                        <span class="file-stats">{stat['stats'].get('data_lines', 0):,} cases • {stat['stats'].get('file_size_mb', 0):.1f}MB</span>
                     </div>"""
 
     html += f"""
@@ -475,14 +480,14 @@ def generate_and_save_report():
 
 def main():
     """Main function"""
-    port = 8080
+    port = 5000
 
     # Check if port is specified
     if len(sys.argv) > 1:
         try:
             port = int(sys.argv[1])
         except ValueError:
-            print("❌ Invalid port number. Using default port 8080")
+            print("❌ Invalid port number. Using default port 5000")
 
     # Generate report
     generate_and_save_report()

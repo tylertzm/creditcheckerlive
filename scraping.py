@@ -4,6 +4,7 @@ import sys
 import time
 import fcntl
 import random
+import re
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -12,6 +13,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
+
+# Increase CSV field size limit to handle large fields
+csv.field_size_limit(sys.maxsize)
 
 # Import credit checking functionality
 from checker import check_image_credits
@@ -26,6 +30,61 @@ OUTPUT_CSV = "claims.csv"
 
 MAX_HITS_PER_CLAIM = 2  # Process claims with 2 or fewer hits
 OVERALL_CSV = "overall_checked_claims.csv"
+
+def sanitize_csv_field(text):
+    """
+    Sanitize text fields for CSV output by removing/replacing problematic characters.
+    Handles newlines, carriage returns, and excessive whitespace.
+    """
+    if not text:
+        return ""
+    
+    # Convert to string
+    text_str = str(text)
+    
+    # Replace newlines and carriage returns with spaces
+    text_str = text_str.replace('\n', ' ').replace('\r', ' ')
+    
+    # Replace multiple spaces with single space
+    text_str = re.sub(r'\s+', ' ', text_str).strip()
+    
+    # Remove null bytes and other problematic characters
+    text_str = text_str.replace('\x00', '').replace('\t', ' ')
+    
+    return text_str
+
+def sanitize_error_message(error_msg):
+    """
+    Sanitize error messages to remove stacktraces and keep only meaningful error info.
+    Prevents multi-line stacktraces from appearing in CSV files.
+    """
+    if not error_msg:
+        return ""
+    
+    # Convert to string
+    error_str = str(error_msg)
+    
+    # Remove stacktraces - take only first line before "Stacktrace:"
+    if "Stacktrace:" in error_str:
+        error_str = error_str.split("Stacktrace:")[0].strip()
+    
+    # Remove session info
+    if "(Session info:" in error_str:
+        error_str = error_str.split("(Session info:")[0].strip()
+    
+    # Apply general CSV field sanitization
+    error_str = sanitize_csv_field(error_str)
+    
+    # Limit length to prevent CSV bloat
+    max_length = 200
+    if len(error_str) > max_length:
+        error_str = error_str[:max_length] + "..."
+    
+    # If empty after sanitization, provide generic message
+    if not error_str:
+        error_str = "Processing error"
+    
+    return error_str
 
 def load_processed_claims():
     """Load already processed claims from overall_checked_claims.csv with file locking"""
@@ -159,6 +218,16 @@ def setup_chrome_driver():
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
+    
+    # Add stability and memory options
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--memory-pressure-off")
+    chrome_options.add_argument("--max_old_space_size=4096")
+    chrome_options.add_argument("--disable-background-timer-throttling")
+    chrome_options.add_argument("--disable-renderer-backgrounding")
+    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
     
     # Load extensions
     extensions_dir = os.path.abspath(".")
@@ -376,14 +445,14 @@ def update_overall_checked_claims(case_rows):
             
             # Check if file is empty to write header
             if f.tell() == 0:
-                writer = csv.writer(f)
+                writer = csv.writer(f, quoting=csv.QUOTE_ALL)
                 writer.writerow([
                     "case_id", "case_url", "hit_number", "page_url", "image_url",
                     "image_found", "keyword_found", "keywords_list", "credit_texts", 
                     "keyword_highlight", "error_status", "screenshot_path", "processed_at"
                 ])
             
-            writer = csv.writer(f)
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             for row in case_rows:
                 writer.writerow(row)
             
@@ -410,14 +479,14 @@ def update_daily_claims(case_rows):
             
             # Check if file is empty to write header
             if f.tell() == 0:
-                writer = csv.writer(f)
+                writer = csv.writer(f, quoting=csv.QUOTE_ALL)
                 writer.writerow([
                     "case_id", "case_url", "hit_number", "page_url", "image_url",
                     "image_found", "keyword_found", "keywords_list", "credit_texts", 
                     "keyword_highlight", "error_status", "screenshot_path", "processed_at"
                 ])
             
-            writer = csv.writer(f)
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             for row in case_rows:
                 writer.writerow(row)
             
@@ -522,7 +591,7 @@ def process_case(driver, claim_url, case_id, processed_claims):
                         break  # Only check the first page URL for now
                     except Exception as e:
                         print(f"[ERROR] Credit check failed for hit {hit_number}: {e}")
-                        credit_results = {'error': str(e)}
+                        credit_results = {'error': sanitize_error_message(str(e))}
             elif not page_hrefs:
                 print(f"[INFO] ⚠️ No page URLs found for hit {hit_number}, skipping credit check")
                 credit_results = {'error': 'No page URLs available'}
@@ -534,34 +603,34 @@ def process_case(driver, claim_url, case_id, processed_claims):
             if page_hrefs:
                 for href in page_hrefs:
                     case_rows.append([
-                        case_id, 
-                        case_url_with_skip, 
-                        hit_number, 
-                        href, 
-                        image_url,
+                        sanitize_csv_field(case_id), 
+                        sanitize_csv_field(case_url_with_skip), 
+                        sanitize_csv_field(hit_number), 
+                        sanitize_csv_field(href), 
+                        sanitize_csv_field(image_url),
                         credit_results.get('image_found', False),
                         len(credit_results.get('credit_keywords', [])) > 0,
-                        ', '.join(credit_results.get('credit_keywords', [])),
-                        ', '.join(credit_results.get('credit_texts', [])),
-                        credit_results.get('highlight_url', ''),
-                        credit_results.get('error', ''),
-                        credit_results.get('screenshot_path', ''),
+                        sanitize_csv_field(', '.join(credit_results.get('credit_keywords', []))),
+                        sanitize_csv_field(', '.join(credit_results.get('credit_texts', []))),
+                        sanitize_csv_field(credit_results.get('highlight_url', '')),
+                        sanitize_error_message(credit_results.get('error', '')),
+                        sanitize_csv_field(credit_results.get('screenshot_path', '')),
                         datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     ])
             else:
                 case_rows.append([
-                    case_id, 
-                    case_url_with_skip, 
-                    hit_number, 
+                    sanitize_csv_field(case_id), 
+                    sanitize_csv_field(case_url_with_skip), 
+                    sanitize_csv_field(hit_number), 
                     "", 
-                    image_url,
+                    sanitize_csv_field(image_url),
                     credit_results.get('image_found', False),
                     len(credit_results.get('credit_keywords', [])) > 0,
-                    ', '.join(credit_results.get('credit_keywords', [])),
-                    ', '.join(credit_results.get('credit_texts', [])),
-                    credit_results.get('highlight_url', ''),
-                    credit_results.get('error', ''),
-                    credit_results.get('screenshot_path', ''),
+                    sanitize_csv_field(', '.join(credit_results.get('credit_keywords', []))),
+                    sanitize_csv_field(', '.join(credit_results.get('credit_texts', []))),
+                    sanitize_csv_field(credit_results.get('highlight_url', '')),
+                    sanitize_error_message(credit_results.get('error', '')),
+                    sanitize_csv_field(credit_results.get('screenshot_path', '')),
                     datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 ])
                 
@@ -626,8 +695,8 @@ def main():
                 if f.tell() == 0:
                     writer.writerow([
                         "case_id", "case_url", "hit_number", "page_url", "image_url",
-                        "image_found", "keyword_found", "keywords_list", "keyword_highlight", 
-                        "error_status", "screenshot_path", "processed_at"
+                        "image_found", "keyword_found", "keywords_list", "credit_texts", 
+                        "keyword_highlight", "error_status", "screenshot_path", "processed_at"
                     ])
                 
                 for i, claim_url in enumerate(qualifying_cases, 1):
@@ -666,6 +735,7 @@ def main():
                             update_daily_claims(case_rows)
                             
                             print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
+                            print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
                         else:
                             print(f"[INFO] No new hits processed for case {case_id}")
                         
@@ -673,6 +743,9 @@ def main():
                         
                     except Exception as e:
                         print(f"[ERROR] Error processing case {case_id}: {e}")
+                        # Check if it's a WebDriver crash
+                        if "WebDriver" in str(e) or "chrome" in str(e).lower() or "session" in str(e).lower():
+                            print("[WARN] Chrome/WebDriver error detected, may need restart")
                         continue
             
             print(f"[INFO] ✅ Processed {len(qualifying_cases)} cases, {len(all_rows)} total rows")

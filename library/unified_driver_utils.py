@@ -272,8 +272,17 @@ def setup_driver(headless=False, extra_chrome_args=None):
     # Create Chrome options
     chrome_options = create_chrome_options(headless=headless, extra_args=extra_chrome_args)
     
-    # Create WebDriver service
-    service = Service(chromedriver_path)
+    # Suppress Chrome crash dumps and logging to prevent pollution of CSV files
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    chrome_options.add_argument('--log-level=3')  # Fatal errors only
+    chrome_options.add_argument('--silent')
+    
+    # Create WebDriver service with log suppression
+    import os
+    service = Service(
+        chromedriver_path,
+        log_output=os.devnull  # Redirect ChromeDriver logs to /dev/null
+    )
     
     # Initialize WebDriver
     driver = None
