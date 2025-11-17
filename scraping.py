@@ -17,6 +17,11 @@ from webdriver_manager.chrome import ChromeDriverManager
 # Increase CSV field size limit to handle large fields
 csv.field_size_limit(sys.maxsize)
 
+# Initialize random seed for better randomization
+# Use filter_type and timestamp for unique seeds per container
+filter_type_seed = sys.argv[2] if len(sys.argv) > 2 else "default"
+random.seed(f"{filter_type_seed}_{int(time.time() * 1000000)}")
+
 # Import credit checking functionality
 from checker import check_image_credits
 
@@ -385,40 +390,15 @@ def get_qualifying_cases(driver, target_count, processed_claims, fully_processed
         try:
             next_button = driver.find_element(By.CSS_SELECTOR, 'a[rel="next"]')
             if not next_button or not next_button.is_enabled():
-                print(f"[INFO] Reached last page ({current_page}), cycling back to page 1")
-                current_page = 1
-                # Save progress to reset to page 1
-                try:
-                    with open(progress_file, 'w') as f:
-                        f.write(str(current_page))
-                    print(f"[INFO] Reset progress to page {current_page}")
-                except Exception as e:
-                    print(f"[WARN] Could not save progress reset: {e}")
-                continue  # Continue the loop from page 1
+                print(f"[INFO] Reached last page ({current_page}), no more pages to process")
+                break  # Exit the loop when no more pages
             else:
-                # Improved randomization: ensure systematic coverage first, then randomize
-                if current_page < 20:
-                    # Process pages sequentially until page 20
-                    current_page += 1
-                    print(f"[INFO] Moving to next sequential page: {current_page}")
-                else:
-                    # After page 20, use controlled randomization to avoid skipping ranges
-                    # Choose from a smaller, more focused range to ensure better coverage
-                    min_page = max(15, current_page - 10)  # Don't go too far back
-                    max_page = min(100, current_page + 50)  # Don't jump too far forward
-                    current_page = random.randint(min_page, max_page)
-                    print(f"[INFO] Jumping to nearby random page: {current_page} (range: {min_page}-{max_page})")
+                # Sequential processing: just move to next page
+                current_page += 1
+                print(f"[INFO] Moving to next sequential page: {current_page}")
         except:
-            print(f"[INFO] No next button found on page {current_page}, cycling back to page 1")
-            current_page = 1
-            # Save progress to reset to page 1
-            try:
-                with open(progress_file, 'w') as f:
-                    f.write(str(current_page))
-                print(f"[INFO] Reset progress to page {current_page}")
-            except Exception as e:
-                print(f"[WARN] Could not save progress reset: {e}")
-            continue  # Continue the loop from page 1
+            print(f"[INFO] No next button found on page {current_page}, stopping processing")
+            break  # Exit the loop when no next button found
             
         # Save progress before moving to next page
         try:
