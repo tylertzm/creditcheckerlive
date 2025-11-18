@@ -31,9 +31,8 @@ from library.upload_utils import add_internal_comment
 # Configuration
 EMAIL = 'proof@copytrack.com'
 PASSWORD = 'legal2024'
-OUTPUT_CSV = "claims.csv"
 
-MAX_HITS_PER_CLAIM = 2  # Process claims with 2 or fewer hits
+MAX_HITS_PER_CLAIM = 4  # Process claims with 4 or fewer hits
 OVERALL_CSV = "overall_checked_claims.csv"
 
 def sanitize_csv_field(text):
@@ -451,7 +450,7 @@ def update_daily_claims(case_rows):
     try:
         # Get today's date for the daily file
         today = datetime.now().strftime('%Y-%m-%d')
-        daily_filename = f'daily_claims_{today}.csv'
+        daily_filename = f'data/daily_claims_{today}.csv'
         
         # Use file locking to prevent concurrent writes
         with open(daily_filename, 'a', newline='', encoding='utf-8') as f:
@@ -540,8 +539,38 @@ def process_case(driver, claim_url, case_id, processed_claims):
                                 # Keywords found - add comment
                                 print(f"[INFO] 💬 Adding comment for found credits in hit {hit_number}...")
                                 comment_text = f"Credit keywords found for hit {hit_number}:\n"
+                                
+                                # Group keywords by location for better organization
+                                location_keywords = {}
                                 for keyword in credit_results.get('credit_keywords', []):
-                                    comment_text += f"- {keyword}\n"
+                                    if ': ' in keyword:
+                                        location, actual_keyword = keyword.split(': ', 1)
+                                        if location not in location_keywords:
+                                            location_keywords[location] = []
+                                        location_keywords[location].append(actual_keyword)
+                                    else:
+                                        # Keywords without location prefix
+                                        if 'General' not in location_keywords:
+                                            location_keywords['General'] = []
+                                        location_keywords['General'].append(keyword)
+                                
+                                # Build comment with location-specific information
+                                for location, keywords in location_keywords.items():
+                                    if location == 'Image Caption':
+                                        comment_text += f"Found in image captions: {', '.join(keywords)}\n"
+                                    elif location == 'Parent Element':
+                                        comment_text += f"Found in text near image: {', '.join(keywords)}\n"
+                                    elif location == 'Scrolled Text':
+                                        comment_text += f"Found in page content: {', '.join(keywords)}\n"
+                                    elif location == 'OCR':
+                                        comment_text += f"Found in image text (OCR): {', '.join(keywords)}\n"
+                                    elif location == 'Impressum':
+                                        comment_text += f"Found in impressum/legal page: {', '.join(keywords)}\n"
+                                    elif location == 'Impressum OCR':
+                                        comment_text += f"Found in impressum via OCR: {', '.join(keywords)}\n"
+                                    else:
+                                        comment_text += f"Found ({location}): {', '.join(keywords)}\n"
+                                
                                 if credit_results.get('highlight_url'):
                                     comment_text += f"Highlight URL: {credit_results['highlight_url']}"
                                 
@@ -668,65 +697,52 @@ def main():
             
             # Process each case
             all_rows = []
-            with open(OUTPUT_CSV, "a", newline='', encoding='utf-8') as f:  # Append mode instead of write
-                writer = csv.writer(f)
+            for i, claim_url in enumerate(qualifying_cases, 1):
+                case_id = extract_case_id_from_url(claim_url)
+                print(f"[INFO] Processing case {i}/{len(qualifying_cases)}: {case_id}")
                 
-                # Write header only if file is empty
-                if f.tell() == 0:
-                    writer.writerow([
-                        "case_id", "case_url", "hit_number", "page_url", "image_url",
-                        "image_found", "keyword_found", "keywords_list", "credit_texts", 
-                        "keyword_highlight", "error_status", "screenshot_path", "processed_at"
-                    ])
-                
-                for i, claim_url in enumerate(qualifying_cases, 1):
-                    case_id = extract_case_id_from_url(claim_url)
-                    print(f"[INFO] Processing case {i}/{len(qualifying_cases)}: {case_id}")
+                try:
+                    case_rows, total_hits_found = process_case(driver, claim_url, case_id, processed_claims)
                     
-                    try:
-                        case_rows, total_hits_found = process_case(driver, claim_url, case_id, processed_claims)
+                    if case_rows:  # Only process if we have results
+                        all_rows.extend(case_rows)
                         
-                        if case_rows:  # Only process if we have results
-                            writer.writerows(case_rows)
-                            f.flush()
-                            all_rows.extend(case_rows)
-                            
-                            # Update processed_claims set with all hits from this case
-                            processed_hits_in_case = 0
-                            for row in case_rows:
-                                hit_number = row[2]  # hit_number is the 3rd column
-                                claim_key = f"{case_id}_{hit_number}"
-                                processed_claims.add(claim_key)
-                                processed_hits_in_case += 1
-                            
-                            # Check if this case is now fully processed
-                            # Count how many hits from this case are in processed_claims
-                            case_hit_keys = {f"{case_id}_{hit_num}" for hit_num in range(1, total_hits_found + 1)}
-                            processed_hits_for_case = case_hit_keys.intersection(processed_claims)
-                            
-                            if len(processed_hits_for_case) == total_hits_found:
-                                fully_processed_cases.add(case_id)
-                                print(f"[INFO] Case {case_id} is now fully processed ({total_hits_found} hits)")
-                                save_fully_processed_cases(fully_processed_cases)
-                            
-                            # Update both overall and daily claims CSV files immediately after processing this case
-                            print(f"[INFO] Updating overall_checked_claims.csv with {len(case_rows)} rows from case {case_id}")
-                            update_overall_checked_claims(case_rows)
-                            update_daily_claims(case_rows)
-                            
-                            print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
-                            print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
-                        else:
-                            print(f"[INFO] No new hits processed for case {case_id}")
+                        # Update processed_claims set with all hits from this case
+                        processed_hits_in_case = 0
+                        for row in case_rows:
+                            hit_number = row[2]  # hit_number is the 3rd column
+                            claim_key = f"{case_id}_{hit_number}"
+                            processed_claims.add(claim_key)
+                            processed_hits_in_case += 1
                         
-                        time.sleep(1)  # Small delay between cases
+                        # Check if this case is now fully processed
+                        # Count how many hits from this case are in processed_claims
+                        case_hit_keys = {f"{case_id}_{hit_num}" for hit_num in range(1, total_hits_found + 1)}
+                        processed_hits_for_case = case_hit_keys.intersection(processed_claims)
                         
-                    except Exception as e:
-                        print(f"[ERROR] Error processing case {case_id}: {e}")
-                        # Check if it's a WebDriver crash
-                        if "WebDriver" in str(e) or "chrome" in str(e).lower() or "session" in str(e).lower():
-                            print("[WARN] Chrome/WebDriver error detected, may need restart")
-                        continue
+                        if len(processed_hits_for_case) == total_hits_found:
+                            fully_processed_cases.add(case_id)
+                            print(f"[INFO] Case {case_id} is now fully processed ({total_hits_found} hits)")
+                            save_fully_processed_cases(fully_processed_cases)
+                        
+                        # Update both overall and daily claims CSV files immediately after processing this case
+                        print(f"[INFO] Updating overall_checked_claims.csv with {len(case_rows)} rows from case {case_id}")
+                        update_overall_checked_claims(case_rows)
+                        update_daily_claims(case_rows)
+                        
+                        print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
+                        print(f"[INFO] Finished case {case_id}, {len(case_rows)} rows written")
+                    else:
+                        print(f"[INFO] No new hits processed for case {case_id}")
+                    
+                    time.sleep(1)  # Small delay between cases
+                    
+                except Exception as e:
+                    print(f"[ERROR] Error processing case {case_id}: {e}")
+                    # Check if it's a WebDriver crash
+                    if "WebDriver" in str(e) or "chrome" in str(e).lower() or "session" in str(e).lower():
+                        print("[WARN] Chrome/WebDriver error detected, may need restart")
+                    continue
             
             print(f"[INFO] ✅ Processed {len(qualifying_cases)} cases, {len(all_rows)} total rows")
             print(f"[INFO] Waiting 5 seconds before checking for more claims...")

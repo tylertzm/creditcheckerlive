@@ -462,7 +462,10 @@ def check_impressum_for_credits(driver, original_url, case_url=None, hit_id=None
             # Check for credit keywords in the impressum text (optimized)
             found_keywords_in_impressum = find_credit_keywords_in_text(page_text)
             found_count = len(found_keywords_in_impressum)
-            impressum_keywords.extend(found_keywords_in_impressum)
+            
+            # Add impressum prefix to keywords
+            prefixed_keywords = [f"Impressum: {keyword}" for keyword in found_keywords_in_impressum]
+            impressum_keywords.extend(prefixed_keywords)
             
             if found_count > 0:
                 print(f"🎯 Found {found_count} credit keywords in {impressum_type} page HTML text!")

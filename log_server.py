@@ -17,7 +17,7 @@ CONTAINERS = [
     'creditcheck-scheduler'
 ]
 
-def get_container_logs(container_name, tail=100):
+def get_container_logs(container_name, tail=1000):
     """Get logs from a Docker container"""
     try:
         result = subprocess.run(
@@ -34,7 +34,7 @@ def stream_container_logs(container_name):
     """Stream logs from a Docker container in real-time"""
     try:
         process = subprocess.Popen(
-            ['docker', 'logs', '-f', '--tail', '50', container_name],
+            ['docker', 'logs', '-f', '--tail', '1000', container_name],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -85,7 +85,7 @@ def status():
 @app.route('/api/logs/<container_name>')
 def logs(container_name):
     """API endpoint to get container logs"""
-    tail = int(request.args.get('tail', 100))
+    tail = int(request.args.get('tail', 1000))
     if container_name not in CONTAINERS:
         return jsonify({'error': 'Container not found'}), 404
     

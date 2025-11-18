@@ -5,244 +5,677 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Credit Checker Dashboard</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            color: #e2e8f0;
             min-height: 100vh;
             padding: 20px;
+            background-attachment: fixed;
         }
-
-        .container {
+        
+        .dashboard {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 25px;
+            min-height: calc(100vh - 40px);
         }
-
+        
         .header {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-            padding: 30px;
             text-align: center;
+            padding: 30px 20px;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
-
+        
         .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+            font-size: 2.5em;
             font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
-
+        
         .header p {
-            font-size: 1.1rem;
+            color: #94a3b8;
+            font-size: 1em;
+            font-weight: 400;
             opacity: 0.9;
         }
-
-        .stats-grid {
+        
+        .content {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            padding: 30px;
-        }
-
-        .stat-card {
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 25px;
-            border-left: 4px solid #4f46e5;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-        }
-
-        .stat-card h3 {
-            color: #1e293b;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-            font-weight: 600;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #4f46e5;
-            margin-bottom: 10px;
-        }
-
-        .stat-detail {
-            color: #64748b;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-        }
-
-        .file-list {
-            margin-top: 20px;
-        }
-
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px;
-            background: white;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .file-name {
-            font-weight: 500;
-            color: #334155;
-        }
-
-        .file-stats {
-            font-size: 0.85rem;
-            color: #64748b;
-        }
-
-        .activity-section {
-            padding: 30px;
-            background: #f8fafc;
-        }
-
-        .activity-section h2 {
-            color: #1e293b;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
-
-        .activity-list {
-            background: white;
-            border-radius: 8px;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+            height: 100%;
             overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
-
-        .activity-item {
-            padding: 15px 20px;
-            border-bottom: 1px solid #e2e8f0;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 0.85rem;
-            color: #475569;
+        
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            overflow: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
         }
-
-        .activity-item:last-child {
-            border-bottom: none;
+        
+        .left-panel::-webkit-scrollbar {
+            width: 6px;
         }
-
-        .footer {
+        
+        .left-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .left-panel::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 3px;
+        }
+        
+        .right-panel {
+            background: rgba(30, 41, 59, 0.8);
+            padding: 25px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+        }
+        
+        .right-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .right-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .right-panel::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 3px;
+        }
+        
+        .section {
+            background: rgba(30, 41, 59, 0.8);
+            padding: 25px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .section-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #f8fafc;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(96, 165, 250, 0.3);
+        }
+        
+        .section-title::before {
+            content: "📊";
+            font-size: 1.1em;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+        }
+        
+        .metric {
             text-align: center;
             padding: 20px;
-            background: #f8fafc;
-            color: #64748b;
-            font-size: 0.9rem;
+            background: linear-gradient(135deg, rgba(51, 65, 85, 0.8), rgba(30, 41, 59, 0.8));
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
-
-        .success-rate {
+        
+        .metric::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa, #34d399);
+        }
+        
+        .metric:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(96, 165, 250, 0.2);
+            border-color: rgba(96, 165, 250, 0.4);
+        }
+        
+        .metric-value {
+            font-size: 2.2em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .metric-label {
+            font-size: 0.85em;
+            color: #94a3b8;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .table {
+            width: 100%;
+        }
+        
+        .table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: #6b7280;
+            font-size: 0.8em;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(30, 41, 59, 0.8);
+        }
+        
+        .table td {
+            padding: 10px 12px;
+            color: #e2e8f0;
+            background: rgba(30, 41, 59, 0.5);
+            font-size: 0.9em;
+        }
+        
+        .table tr:hover {
+            background: rgba(96, 165, 250, 0.1);
+        }
+        
+        .file-link {
+            color: #60a5fa;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .file-link:hover {
+            color: #93c5fd;
+        }
+        
+        .status-active {
+            background: #065f46;
+            color: #10b981;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+        
+        .info-grid {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            color: #9ca3af;
+            font-size: 0.9em;
+            background: rgba(30, 41, 59, 0.5);
+        }
+        
+        .info-value {
+            color: #e2e8f0;
+            font-weight: 600;
+        }
+        
+        .download-btn {
+            background: #065f46;
+            color: #10b981;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.8em;
+            transition: all 0.3s ease;
+        }
+        
+        .download-btn:hover {
+            background: #10b981;
+            color: #000000;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1.2); }
+        }
+        
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px #10b981; }
+            50% { text-shadow: 0 0 20px #10b981, 0 0 30px #10b981; }
+            100% { text-shadow: 0 0 5px #10b981; }
+        }
+        
+        @keyframes numberCount {
+            0% { transform: scale(0.8); opacity: 0.7; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        @keyframes slideInUp {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        .metric-value {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .metric-value.updating {
+            animation: numberCount 0.6s ease-out, glow 1s ease-in-out;
+            color: #10b981 !important;
+            text-shadow: 0 0 15px #10b981;
+        }
+        
+        .metric-value.changed {
+            animation: bounce 0.8s ease-out;
+            background: linear-gradient(45deg, #065f46, #10b981, #065f46);
+            background-size: 200% 200%;
+            animation: shimmer 1.5s ease-in-out, bounce 0.8s ease-out;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .metric-label {
+            transition: all 0.3s ease;
+        }
+        
+        .metric-label.updating {
             color: #10b981;
             font-weight: 600;
-        }
-
-        .error-rate {
-            color: #ef4444;
-            font-weight: 600;
-        }
-
-        @media (max-width: 768px) {
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="dashboard">
         <div class="header">
-            <h1>🎯 Credit Checker Dashboard</h1>
-            <p>Real-time monitoring of credit checking operations</p>
+            <h1>Credit Checker Dashboard</h1>
+            <p>November 18, 2025 • 09:06:57 • Live updates every 10s</p>
         </div>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>📊 Daily Cases (Last 7 Days)</h3>
-                <div class="stat-value">13,843</div>
-                <div class="stat-detail">Total cases processed recently</div>
-                <div class="file-list">
+        <div class="content">
+            <div class="left-panel">
+                <!-- Overview Statistics -->
+                <div class="section">
+                    <div class="section-title">Overview Statistics (From Overall Data)</div>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-value">39399</div>
+                            <div class="metric-label">Unique Cases Processed</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">55667</div>
+                            <div class="metric-label">Total Hits Processed</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">68</div>
+                            <div class="metric-label">Daily CSV Files</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">48790</div>
+                            <div class="metric-label">Images Found</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">8454</div>
+                            <div class="metric-label">Keywords Found</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">87.6%</div>
+                            <div class="metric-label">Image Success Rate</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">15.2%</div>
+                            <div class="metric-label">Keyword Success Rate</div>
+                        </div>
+                    </div>
+                </div>
 
-                    <div class="file-item">
-                        <span class="file-name">daily_claims_2025-11-08.csv</span>
-                        <span class="file-stats">3,163 cases • 0.9MB</span>
+                <!-- Today's Claims Statistics -->
+                <div class="section">
+                    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Today's Claims Statistics (2025-11-18)</span>
+                        <a href="/overall_checked_claims.csv" class="download-btn">
+                            Download Overall Claims CSV
+                        </a>
                     </div>
-                    <div class="file-item">
-                        <span class="file-name">daily_claims_2025-11-09.csv</span>
-                        <span class="file-stats">2,566 cases • 0.9MB</span>
+                    <div style="background: #1f2937; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
+                        <div style="color: #fbbf24; font-weight: 600; margin-bottom: 8px;">Data Accuracy Notice</div>
+                        <div style="color: #d1d5db; font-size: 0.9em; line-height: 1.4;">
+                            Today's statistics may contain processing errors and should be considered preliminary.
+                            For accurate and reliable data, please refer to the overall dataset which undergoes
+                            comprehensive validation and quality assurance processes.
+                        </div>
                     </div>
-                    <div class="file-item">
-                        <span class="file-name">daily_claims_2025-11-10.csv</span>
-                        <span class="file-stats">1,645 cases • 0.6MB</span>
+                    <div class="metrics-grid" style="margin-bottom: 20px;">
+                        <div class="metric">
+                            <div class="metric-value">1400</div>
+                            <div class="metric-label">Total Claims Processed</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">1292</div>
+                            <div class="metric-label">Unique Cases</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">1004</div>
+                            <div class="metric-label">Images Found</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">113</div>
+                            <div class="metric-label">Keywords Found</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">71.7%</div>
+                            <div class="metric-label">Image Success Rate</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">8.1%</div>
+                            <div class="metric-label">Keyword Success Rate</div>
+                        </div>
                     </div>
-                    <div class="file-item">
-                        <span class="file-name">daily_claims_2025-11-11.csv</span>
-                        <span class="file-stats">2,121 cases • 0.7MB</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-name">daily_claims_2025-11-12.csv</span>
-                        <span class="file-stats">3,222 cases • 1.0MB</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-name">daily_claims_2025-11-13.csv</span>
-                        <span class="file-stats">1,118 cases • 0.3MB</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-name">daily_claims_no_date.csv</span>
-                        <span class="file-stats">8 cases • 0.0MB</span>
-                    </div>
+                </div>
+
+                <!-- Daily CSV Files -->
+                <div class="section">
+                    <div class="section-title">Daily CSV Files</div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Total Processed Hits</th>
+                                <th>File Size</th>
+                                <th>Last Modified</th>
+                                <th>Images Found</th>
+                                <th>Keywords Found</th>
+                                <th>Image Success Rate</th>
+                                <th>Keyword Success Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-18.csv" class="file-link">daily_claims_2025-11-18.csv</a></td>
+                                <td>1400</td>
+                                <td>0.54 MB</td>
+                                <td>2025-11-18 09:06:51</td>
+                                <td>1004</td>
+                                <td>113</td>
+                                <td>71.7%</td>
+                                <td>8.1%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-17.csv" class="file-link">daily_claims_2025-11-17.csv</a></td>
+                                <td>1909</td>
+                                <td>0.76 MB</td>
+                                <td>2025-11-17 23:59:09</td>
+                                <td>1154</td>
+                                <td>148</td>
+                                <td>60.5%</td>
+                                <td>7.8%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-16.csv" class="file-link">daily_claims_2025-11-16.csv</a></td>
+                                <td>900</td>
+                                <td>0.27 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>661</td>
+                                <td>40</td>
+                                <td>73.4%</td>
+                                <td>4.4%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-15.csv" class="file-link">daily_claims_2025-11-15.csv</a></td>
+                                <td>3586</td>
+                                <td>1.08 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>2807</td>
+                                <td>171</td>
+                                <td>78.3%</td>
+                                <td>4.8%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-14.csv" class="file-link">daily_claims_2025-11-14.csv</a></td>
+                                <td>3952</td>
+                                <td>1.20 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>3058</td>
+                                <td>209</td>
+                                <td>77.4%</td>
+                                <td>5.3%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-13.csv" class="file-link">daily_claims_2025-11-13.csv</a></td>
+                                <td>2506</td>
+                                <td>0.77 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>1909</td>
+                                <td>107</td>
+                                <td>76.2%</td>
+                                <td>4.3%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-12.csv" class="file-link">daily_claims_2025-11-12.csv</a></td>
+                                <td>2962</td>
+                                <td>0.86 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>2291</td>
+                                <td>110</td>
+                                <td>77.3%</td>
+                                <td>3.7%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-11.csv" class="file-link">daily_claims_2025-11-11.csv</a></td>
+                                <td>1938</td>
+                                <td>0.58 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>1533</td>
+                                <td>54</td>
+                                <td>79.1%</td>
+                                <td>2.8%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-10.csv" class="file-link">daily_claims_2025-11-10.csv</a></td>
+                                <td>1394</td>
+                                <td>0.43 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>1136</td>
+                                <td>37</td>
+                                <td>81.5%</td>
+                                <td>2.7%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-09.csv" class="file-link">daily_claims_2025-11-09.csv</a></td>
+                                <td>2222</td>
+                                <td>0.66 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>1796</td>
+                                <td>75</td>
+                                <td>80.8%</td>
+                                <td>3.4%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-08.csv" class="file-link">daily_claims_2025-11-08.csv</a></td>
+                                <td>2717</td>
+                                <td>0.74 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>1846</td>
+                                <td>44</td>
+                                <td>67.9%</td>
+                                <td>1.6%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-07.csv" class="file-link">daily_claims_2025-11-07.csv</a></td>
+                                <td>634</td>
+                                <td>0.19 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>468</td>
+                                <td>16</td>
+                                <td>73.8%</td>
+                                <td>2.5%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-06.csv" class="file-link">daily_claims_2025-11-06.csv</a></td>
+                                <td>975</td>
+                                <td>0.37 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>864</td>
+                                <td>320</td>
+                                <td>88.6%</td>
+                                <td>32.8%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-05.csv" class="file-link">daily_claims_2025-11-05.csv</a></td>
+                                <td>1265</td>
+                                <td>0.45 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>1245</td>
+                                <td>392</td>
+                                <td>98.4%</td>
+                                <td>31.0%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-04.csv" class="file-link">daily_claims_2025-11-04.csv</a></td>
+                                <td>252</td>
+                                <td>0.09 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>251</td>
+                                <td>70</td>
+                                <td>99.6%</td>
+                                <td>27.8%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-03.csv" class="file-link">daily_claims_2025-11-03.csv</a></td>
+                                <td>148</td>
+                                <td>0.05 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>145</td>
+                                <td>43</td>
+                                <td>98.0%</td>
+                                <td>29.1%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-02.csv" class="file-link">daily_claims_2025-11-02.csv</a></td>
+                                <td>103</td>
+                                <td>0.03 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>101</td>
+                                <td>27</td>
+                                <td>98.1%</td>
+                                <td>26.2%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-11-01.csv" class="file-link">daily_claims_2025-11-01.csv</a></td>
+                                <td>315</td>
+                                <td>0.11 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>314</td>
+                                <td>96</td>
+                                <td>99.7%</td>
+                                <td>30.5%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-10-31.csv" class="file-link">daily_claims_2025-10-31.csv</a></td>
+                                <td>422</td>
+                                <td>0.14 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>420</td>
+                                <td>79</td>
+                                <td>99.5%</td>
+                                <td>18.7%</td>
+                            </tr>
+                            <tr>
+                                <td><a href="/daily_claims_2025-10-30.csv" class="file-link">daily_claims_2025-10-30.csv</a></td>
+                                <td>421</td>
+                                <td>0.15 MB</td>
+                                <td>2025-11-17 10:54:21</td>
+                                <td>418</td>
+                                <td>119</td>
+                                <td>99.3%</td>
+                                <td>28.3%</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div class="stat-card">
-                <h3>📈 Overall Database</h3>
-                <div class="stat-value">54,941</div>
-                <div class="stat-detail">Total cases in main database</div>
-                <div class="stat-detail">Keyword detection: <span class="success-rate">15.0%</span></div>
-                <div class="stat-detail">Image detection: <span class="success-rate">74.7%</span></div>
-            </div>
-
-            <div class="stat-card">
-                <h3>📚 Archived Data</h3>
-                <div class="stat-value">0</div>
-                <div class="stat-detail">Cases in archived files</div>
-                <div class="file-list">
-
+            <div class="right-panel">
+                <!-- System Status -->
+                <div class="section-title">System Status</div>
+                <div class="info-grid">
+                    <div class="info-row">
+                        <span>Active Daily Files</span>
+                        <span class="info-value">68</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Locked Files</span>
+                        <span class="info-value">0</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Archived Cases</span>
+                        <span class="info-value">0</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Last Updated</span>
+                        <span class="info-value">09:06</span>
+                    </div>
                 </div>
+
+                <button class="refresh-btn" onclick="location.reload()">Refresh Report</button>
             </div>
-        </div>
-
-        <div class="activity-section">
-            <h2>🔄 Recent Activity</h2>
-            <div class="activity-list">
-                <div class="activity-item">No recent activity found</div>
-
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>Generated on 2025-11-13 13:53:05 • Credit Checker System</p>
         </div>
     </div>
 </body>

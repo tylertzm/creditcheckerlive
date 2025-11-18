@@ -148,7 +148,9 @@ def _ocr_scroll_impressum_page(driver, impressum_type, max_scrolls=10, case_url=
             # Process the screenshot with OCR
             keywords, text = check_image_ocr_for_credits(f"file://{os.path.abspath(screenshot_path)}")
             if keywords:
-                found_keywords.extend(keywords)
+                # Replace generic OCR prefix with impressum-specific prefix
+                impressum_ocr_keywords = [keyword.replace("OCR: ", f"Impressum OCR: ") for keyword in keywords]
+                found_keywords.extend(impressum_ocr_keywords)
                 extracted_texts.append(text)
         
         # Scroll and take additional screenshots
@@ -171,7 +173,9 @@ def _ocr_scroll_impressum_page(driver, impressum_type, max_scrolls=10, case_url=
                     # Process the screenshot with OCR
                     keywords, text = check_image_ocr_for_credits(f"file://{os.path.abspath(screenshot_path)}")
                     if keywords:
-                        found_keywords.extend(keywords)
+                        # Replace generic OCR prefix with impressum-specific prefix
+                        impressum_ocr_keywords = [keyword.replace("OCR: ", f"Impressum OCR: ") for keyword in keywords]
+                        found_keywords.extend(impressum_ocr_keywords)
                         extracted_texts.append(text)
                 
             except Exception as e:
