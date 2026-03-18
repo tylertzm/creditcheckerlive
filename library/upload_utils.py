@@ -411,3 +411,59 @@ def add_credit_comment(driver, case_results):
     comment_text = "\n".join(comment_lines)
     add_internal_comment(driver, comment_text)
     return True
+
+def reject_case_with_comment(driver, comment_text="credit found by credit checker tool"):
+    """
+    Reject a case by changing its state to "reject" and adding a comment.
+    
+    Args:
+        driver: Selenium WebDriver instance
+        comment_text: Text to add as comment (default: "credit found by credit checker tool")
+        
+    Returns:
+        bool: True if rejection succeeded, False otherwise
+    """
+    try:
+        print(f"[INFO] 🔴 Attempting to reject case with comment: '{comment_text}'")
+        
+        # First, add the comment
+        print("[INFO] Adding comment...")
+        add_internal_comment(driver, comment_text)
+        time.sleep(2)
+        
+        # Find and interact with the state dropdown
+        print("[INFO] Finding state change dropdown...")
+        state_dropdown = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "change-state-select"))
+        )
+        
+        # Click to open the dropdown
+        safe_click(driver, state_dropdown, "state dropdown")
+        time.sleep(1)
+        
+        # Select "reject" option
+        select = Select(state_dropdown)
+        select.select_by_value("reject")
+        print("[INFO] ✅ Selected 'reject' state")
+        time.sleep(1)
+        
+        # Look for and click the confirmation button (usually appears after state selection)
+        try:
+            # Try to find Submit or Confirm button related to state change
+            submit_button = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Submit') or contains(text(), 'Confirm')]"))
+            )
+            safe_click(driver, submit_button, "state change confirmation button")
+            print("[INFO] ✅ Case rejected successfully!")
+            time.sleep(2)
+            return True
+        except:
+            print("[WARN] No confirmation button found, state change may have been submitted automatically")
+            time.sleep(2)
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error rejecting case: {e}")
+        import traceback
+        traceback.print_exc()
+        return False

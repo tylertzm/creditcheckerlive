@@ -26,7 +26,7 @@ random.seed(f"{filter_type_seed}_{int(time.time() * 1000000)}")
 from checker import check_image_credits
 
 # Import upload utilities
-from library.upload_utils import add_internal_comment
+from library.upload_utils import add_internal_comment, reject_case_with_comment
 
 # Configuration
 EMAIL = 'proof@copytrack.com'
@@ -576,6 +576,14 @@ def process_case(driver, claim_url, case_id, processed_claims):
                                 
                                 add_internal_comment(driver, comment_text)
                                 print(f"[INFO] ✅ Comment added successfully for hit {hit_number}")
+                                
+                                # Auto-reject case when credits are found
+                                try:
+                                    print(f"[INFO] 🔴 Auto-rejecting case {case_id} due to found credits...")
+                                    reject_case_with_comment(driver, "credit found by credit checker tool")
+                                    print(f"[INFO] ✅ Case {case_id} rejected successfully")
+                                except Exception as reject_error:
+                                    print(f"[WARN] Failed to reject case {case_id}: {reject_error}")
                                 
                             else:
                                 # No keywords found - add comment

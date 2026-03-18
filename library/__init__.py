@@ -21,7 +21,7 @@ from .control_utils import (
 from .upload_utils import (
     safe_click, click_button, try_upload_evidence, capture_image_screenshot,
     upload_screenshot_evidence_usual, upload_screenshot_evidence_new_claims,
-    add_internal_comment, add_screenshot_comment, add_credit_comment
+    add_internal_comment, add_screenshot_comment, add_credit_comment, reject_case_with_comment
 )
 
 __all__ = [
@@ -45,5 +45,5 @@ __all__ = [
     # Upload utilities
     'safe_click', 'click_button', 'try_upload_evidence', 'capture_image_screenshot',
     'upload_screenshot_evidence_usual', 'upload_screenshot_evidence_new_claims',
-    'add_internal_comment', 'add_screenshot_comment', 'add_credit_comment'
+    'add_internal_comment', 'add_screenshot_comment', 'add_credit_comment', 'reject_case_with_comment'
 ]
