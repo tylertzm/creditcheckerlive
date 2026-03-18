@@ -9,6 +9,9 @@ services:
       - ./logs:/app/logs
       # Mount overall_checked_claims.csv if it exists (shared between even/odd)
       - ./overall_checked_claims.csv:/app/overall_checked_claims.csv
+      # Mount progress files to persist scraping progress
+      - ./last_page_even.txt:/app/last_page_even.txt
+      - ./last_page_odd.txt:/app/last_page_odd.txt
     environment:
       - DISPLAY=:99
       - PYTHONUNBUFFERED=1
