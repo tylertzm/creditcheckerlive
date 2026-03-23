@@ -306,9 +306,18 @@ def login(driver):
     )
     submit_button.click()
     
-    # Wait a moment for login to process
-    time.sleep(3)
-    print("[INFO] Login completed, proceeding to claims...")
+    # Wait longer for login to fully process and session to establish
+    time.sleep(5)
+    
+    # Verify login succeeded by checking for dashboard
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, 'a[href*="/admin"]'))
+        )
+        print("[INFO] Login completed successfully, proceeding to claims...")
+    except:
+        print("[WARN] Login verification failed, but continuing anyway...")
+        print("[INFO] Login completed, proceeding to claims...")
 
 def get_qualifying_cases(driver, target_count, processed_claims, fully_processed_cases, filter_type=None):
     """Get qualifying cases from the review list"""
