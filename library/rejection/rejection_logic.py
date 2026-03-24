@@ -61,18 +61,20 @@ def login_to_copytrack(driver):
         return False
 
 
-def reject_case_simple(driver, case_id, comment_text="credit found by credit checker tool"):
+def reject_case_simple(driver, case_id, credit_name="unknown credit"):
     """
-    Reject a Copytrack case with a comment.
+    Reject a Copytrack case with a credit note comment.
     
     Args:
         driver: Selenium WebDriver instance
         case_id: The case ID to reject
-        comment_text: Comment to add when rejecting
+        credit_name: Name of the credit found (from keywords_list)
         
     Returns:
         bool: True if rejection succeeded, False otherwise
     """
+    # Create comment text with credit name
+    comment_text = f"Credit Note: As {credit_name} is credited, for now we close this claim. If you are sure that the opponent does not have a license, please let us know - we're happy to re-open the claim! Thank you in advance."
     try:
         print(f"[INFO] 🔴 Rejecting case {case_id}...")
         
@@ -191,15 +193,15 @@ def reject_case_simple(driver, case_id, comment_text="credit found by credit che
 
 def extract_cases_to_reject_from_csv(csv_file):
     """
-    Extract case IDs from CSV where both image_found=True and keyword_found=True.
+    Extract case IDs and their credit info from CSV where both image_found=True and keyword_found=True.
     
     Args:
         csv_file: Path to CSV file
         
     Returns:
-        set: Set of case IDs to reject
+        dict: Dictionary mapping case_id to credit name (keywords_list)
     """
-    cases_to_reject = set()
+    cases_to_reject = {}
     
     try:
         with open(csv_file, 'r', encoding='utf-8') as f:
@@ -208,17 +210,20 @@ def extract_cases_to_reject_from_csv(csv_file):
                 case_id = row.get('case_id', '').strip('"')
                 image_found = row.get('image_found', '').strip('"')
                 keyword_found = row.get('keyword_found', '').strip('"')
+                keywords_list = row.get('keywords_list', '').strip('"')
                 
                 # Check if both are True
                 if image_found == 'True' and keyword_found == 'True':
-                    cases_to_reject.add(case_id)
+                    # Use first keyword as credit name
+                    credit_name = keywords_list.split(',')[0].strip() if keywords_list else "unknown credit"
+                    cases_to_reject[case_id] = credit_name
         
         print(f"[INFO] 📋 Found {len(cases_to_reject)} cases to reject in {csv_file}")
         return cases_to_reject
         
     except Exception as e:
         print(f"[ERROR] ❌ Error reading {csv_file}: {e}")
-        return set()
+        return {}
 
 
 def get_daily_csv_files(start_date=None, end_date=None, directory='.'):

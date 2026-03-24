@@ -114,8 +114,8 @@ def main():
     
     print(f"[INFO] 📁 Processing {len(csv_files)} CSV file(s)")
     
-    # Extract all cases with credits
-    all_cases = set()
+    # Extract all cases with credits (dict of case_id: credit_name)
+    all_cases = {}
     for csv_file in csv_files:
         cases = extract_cases_to_reject_from_csv(csv_file)
         all_cases.update(cases)
@@ -130,7 +130,8 @@ def main():
     tracker = RejectionTracker()
     
     # Filter out already-rejected cases
-    new_cases = [c for c in all_cases if not tracker.is_already_rejected(c)]
+    new_cases = {case_id: credit for case_id, credit in all_cases.items() 
+                 if not tracker.is_already_rejected(case_id)}
     skipped_count = len(all_cases) - len(new_cases)
     
     if skipped_count > 0:
@@ -143,7 +144,7 @@ def main():
     print(f"[INFO] 🆕 New cases to reject: {len(new_cases)}")
     
     # Apply limit if specified
-    cases_to_process = sorted(list(new_cases))
+    cases_to_process = sorted(new_cases.items())
     if args.limit:
         cases_to_process = cases_to_process[:args.limit]
         print(f"[INFO] ⚠️  Limited to {args.limit} cases")
@@ -151,8 +152,8 @@ def main():
     # Dry run - just list cases
     if args.dry_run:
         print("\n[INFO] 🔍 DRY RUN - Cases that would be rejected:")
-        for case_id in cases_to_process:
-            print(f"  - {case_id}")
+        for case_id, credit_name in cases_to_process:
+            print(f"  - {case_id} (Credit: {credit_name})")
         print(f"\n[INFO] Total: {len(cases_to_process)} cases")
         return 0
     
@@ -170,10 +171,10 @@ def main():
         successful = 0
         failed = 0
         
-        for i, case_id in enumerate(cases_to_process, 1):
-            print(f"\n[INFO] [{i}/{len(cases_to_process)}] Processing case {case_id}")
+        for i, (case_id, credit_name) in enumerate(cases_to_process, 1):
+            print(f"\n[INFO] [{i}/{len(cases_to_process)}] Processing case {case_id} (Credit: {credit_name})")
             
-            if reject_case_simple(driver, case_id):
+            if reject_case_simple(driver, case_id, credit_name):
                 successful += 1
                 tracker.mark_as_rejected(case_id)
                 print(f"[INFO] ✅ Progress: {successful} succeeded, {failed} failed")

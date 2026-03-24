@@ -48,7 +48,7 @@ def run_rejection_cycle(driver, tracker):
     
     print(f"[INFO] 📁 Checking {os.path.basename(csv_file)}")
     
-    # Extract cases with credits
+    # Extract cases with credits (returns dict of case_id: credit_name)
     all_cases = extract_cases_to_reject_from_csv(csv_file)
     
     if not all_cases:
@@ -56,7 +56,8 @@ def run_rejection_cycle(driver, tracker):
         return 0, 0, 0
     
     # Filter out already-rejected cases
-    new_cases = [c for c in all_cases if not tracker.is_already_rejected(c)]
+    new_cases = {case_id: credit for case_id, credit in all_cases.items() 
+                 if not tracker.is_already_rejected(case_id)}
     skipped_count = len(all_cases) - len(new_cases)
     
     if skipped_count > 0:
@@ -72,11 +73,11 @@ def run_rejection_cycle(driver, tracker):
     successful = 0
     failed = 0
     
-    for i, case_id in enumerate(sorted(new_cases), 1):
-        print(f"\n[INFO] [{i}/{len(new_cases)}] Rejecting case {case_id}")
+    for i, (case_id, credit_name) in enumerate(sorted(new_cases.items()), 1):
+        print(f"\n[INFO] [{i}/{len(new_cases)}] Rejecting case {case_id} (Credit: {credit_name})")
         
         try:
-            if reject_case_simple(driver, case_id):
+            if reject_case_simple(driver, case_id, credit_name):
                 successful += 1
                 tracker.mark_as_rejected(case_id)
                 print(f"[INFO] ✅ Success ({successful}/{len(new_cases)})")
