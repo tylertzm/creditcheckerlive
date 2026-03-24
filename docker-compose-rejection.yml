@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  credit-checker-rejection:
+    build: .
+    container_name: credit-checker-rejection
+    environment:
+      - DISPLAY=:99
+      - PYTHONUNBUFFERED=1
+      - TZ=America/New_York  # Set timezone for accurate date tracking
+    volumes:
+      # Mount current directory for daily CSV files and rejected_today.csv
+      - .:/app/data
+      # Mount logs directory
+      - ./logs:/app/logs
+    # Restart policy - always restart on failure
+    restart: unless-stopped
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    # Security options for Chrome
+    security_opt:
+      - seccomp:unconfined
+    # Shared memory for Chrome
+    shm_size: 2gb
+    # Command to run the scheduled rejection script
+    command: python3 /app/library/rejection/scheduled_rejection.py
+    # Health check to monitor the container
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "scheduled_rejection.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
