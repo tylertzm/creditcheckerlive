@@ -74,6 +74,8 @@ def reject_case_simple(driver, case_id, credit_name="unknown credit"):
         bool: True if rejection succeeded, False otherwise
     """
     # Create comment text with credit name
+    if "Impressum:" in credit_name:
+        credit_name = credit_name.split("Impressum:")[1].strip()
     comment_text = f"Credit Note: As {credit_name} is credited, for now we close this claim. If you are sure that the opponent does not have a license, please let us know - we're happy to re-open the claim! Thank you in advance."
     try:
         print(f"[INFO] 🔴 Rejecting case {case_id}...")

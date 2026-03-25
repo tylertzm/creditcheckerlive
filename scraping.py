@@ -12,6 +12,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
 # Increase CSV field size limit to handle large fields
@@ -341,10 +342,32 @@ def get_qualifying_cases(driver, target_count, processed_claims, fully_processed
         
         url = f'https://app.copytrack.com/admin/claim/list/review?customerFeedbackRequired=0&itemsPerPage=100&s=c.createdAt&d=desc&page={current_page}'
         driver.get(url)
-        
-        WebDriverWait(driver, 60).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, 'a[title="View images"]'))
-        )
+
+        try:
+            WebDriverWait(driver, 60).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'a[title="View images"]'))
+            )
+        except TimeoutException:
+            page_title = ""
+            current_url = driver.current_url
+            try:
+                page_title = driver.title
+            except Exception:
+                page_title = "<unavailable>"
+
+            print(
+                f"[WARN] Timed out waiting for claim rows on page {current_page}. "
+                f"Skipping page. URL: {current_url} Title: {page_title}"
+            )
+
+            current_page += 1
+            try:
+                with open(progress_file, 'w') as f:
+                    f.write(str(current_page))
+                print(f"[INFO] Saved progress after timeout: page {current_page}")
+            except Exception as e:
+                print(f"[WARN] Could not save progress after timeout: {e}")
+            continue
         
         view_buttons = driver.find_elements(By.CSS_SELECTOR, 'a[title="View images"]')
         print(f"[INFO] Found {len(view_buttons)} view buttons on page {current_page}")
