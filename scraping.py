@@ -592,43 +592,27 @@ def process_case(driver, claim_url, case_id, processed_claims):
                         # Handle comment based on credit check results
                         try:
                             if credit_results.get('credit_keywords'):
-                                # Keywords found - add comment
+                                # Keywords found - add concise comment with only detected credit/keyword text
                                 print(f"[INFO] 💬 Adding comment for found credits in hit {hit_number}...")
-                                comment_text = f"Credit keywords found for hit {hit_number}:\n"
-                                
-                                # Group keywords by location for better organization
-                                location_keywords = {}
+
+                                credit_texts = [text.strip() for text in credit_results.get('credit_texts', []) if text and text.strip()]
+                                keyword_texts = []
                                 for keyword in credit_results.get('credit_keywords', []):
-                                    if ': ' in keyword:
-                                        location, actual_keyword = keyword.split(': ', 1)
-                                        if location not in location_keywords:
-                                            location_keywords[location] = []
-                                        location_keywords[location].append(actual_keyword)
-                                    else:
-                                        # Keywords without location prefix
-                                        if 'General' not in location_keywords:
-                                            location_keywords['General'] = []
-                                        location_keywords['General'].append(keyword)
-                                
-                                # Build comment with location-specific information
-                                for location, keywords in location_keywords.items():
-                                    if location == 'Image Caption':
-                                        comment_text += f"Found in image captions: {', '.join(keywords)}\n"
-                                    elif location == 'Parent Element':
-                                        comment_text += f"Found in text near image: {', '.join(keywords)}\n"
-                                    elif location == 'Scrolled Text':
-                                        comment_text += f"Found in page content: {', '.join(keywords)}\n"
-                                    elif location == 'OCR':
-                                        comment_text += f"Found in image text (OCR): {', '.join(keywords)}\n"
-                                    elif location == 'Impressum':
-                                        comment_text += f"Found in impressum/legal page: {', '.join(keywords)}\n"
-                                    elif location == 'Impressum OCR':
-                                        comment_text += f"Found in impressum via OCR: {', '.join(keywords)}\n"
-                                    else:
-                                        comment_text += f"Found ({location}): {', '.join(keywords)}\n"
-                                
-                                if credit_results.get('highlight_url'):
-                                    comment_text += f"Highlight URL: {credit_results['highlight_url']}"
+                                    value = keyword.split(': ', 1)[1] if ': ' in keyword else keyword
+                                    value = value.strip()
+                                    if value:
+                                        keyword_texts.append(value)
+
+                                unique_keywords = list(dict.fromkeys(keyword_texts))
+                                unique_credits = list(dict.fromkeys(credit_texts))
+
+                                # Prefer keyword list values (same signal as keywords_list CSV column)
+                                if unique_keywords:
+                                    comment_text = f"Credit keyword found: {', '.join(unique_keywords)}"
+                                elif unique_credits:
+                                    comment_text = f"Credit found: {', '.join(unique_credits)}"
+                                else:
+                                    comment_text = "Credit found"
                                 
                                 add_internal_comment(driver, comment_text)
                                 print(f"[INFO] ✅ Comment added successfully for hit {hit_number}")
@@ -636,8 +620,7 @@ def process_case(driver, claim_url, case_id, processed_claims):
                                 # Auto-reject case when credits are found
                                 try:
                                     print(f"[INFO] 🔴 Auto-rejecting case {case_id} due to found credits...")
-                                    credit_name = credit_results.get('credit_texts', [])
-                                    credit_name = credit_name[0] if credit_name else "the photographer"
+                                    credit_name = unique_keywords[0] if unique_keywords else (unique_credits[0] if unique_credits else "the photographer")
                                     rejection_comment = (
                                         f"Credit Note: As {credit_name} is credited, for now we close this claim. "
                                         f"If you are sure that the opponent does not have a license, please let us know - "
