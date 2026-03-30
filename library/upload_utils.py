@@ -448,7 +448,7 @@ def reject_case_with_comment(driver, comment_text="credit found by credit checke
             EC.presence_of_element_located((By.XPATH, "//*[@id='state-comment']"))
         )
         state_comment.clear()
-        state_comment.send_keys("test")
+        state_comment.send_keys(comment_text)
         print("[INFO] ✅ State comment added")
         # Wait longer for JavaScript to enable the Change button after dropdown selection
         time.sleep(3)
