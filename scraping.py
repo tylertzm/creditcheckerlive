@@ -337,6 +337,8 @@ def get_qualifying_cases(driver, target_count, processed_claims, fully_processed
         current_page = 1
         print(f"[INFO] Starting from page 1 (no saved progress)")
     
+    consecutive_timeouts = 0
+
     while len(qualifying_cases) < target_count:
         print(f"[INFO] Processing page {current_page}")
         
@@ -360,6 +362,17 @@ def get_qualifying_cases(driver, target_count, processed_claims, fully_processed
                 f"Skipping page. URL: {current_url} Title: {page_title}"
             )
 
+            consecutive_timeouts += 1
+            if consecutive_timeouts >= 5:
+                print(f"[WARN] {consecutive_timeouts} consecutive timeouts — passed end of valid pages. Resetting to page 1.")
+                try:
+                    with open(progress_file, 'w') as f:
+                        f.write('1')
+                    print(f"[INFO] Progress reset to page 1.")
+                except Exception as e:
+                    print(f"[WARN] Could not reset progress file: {e}")
+                break
+
             current_page += 1
             try:
                 with open(progress_file, 'w') as f:
@@ -369,6 +382,7 @@ def get_qualifying_cases(driver, target_count, processed_claims, fully_processed
                 print(f"[WARN] Could not save progress after timeout: {e}")
             continue
         
+        consecutive_timeouts = 0  # Reset on successful page load
         view_buttons = driver.find_elements(By.CSS_SELECTOR, 'a[title="View images"]')
         print(f"[INFO] Found {len(view_buttons)} view buttons on page {current_page}")
         
@@ -421,14 +435,24 @@ def get_qualifying_cases(driver, target_count, processed_claims, fully_processed
         try:
             next_button = driver.find_element(By.CSS_SELECTOR, 'a[rel="next"]')
             if not next_button or not next_button.is_enabled():
-                print(f"[INFO] Reached last page ({current_page}), no more pages to process")
+                print(f"[INFO] Reached last page ({current_page}), no more pages to process. Resetting to page 1.")
+                try:
+                    with open(progress_file, 'w') as f:
+                        f.write('1')
+                except Exception as e:
+                    print(f"[WARN] Could not reset progress file: {e}")
                 break  # Exit the loop when no more pages
             else:
                 # Sequential processing: just move to next page
                 current_page += 1
                 print(f"[INFO] Moving to next sequential page: {current_page}")
         except:
-            print(f"[INFO] No next button found on page {current_page}, stopping processing")
+            print(f"[INFO] No next button found on page {current_page}, stopping processing. Resetting to page 1.")
+            try:
+                with open(progress_file, 'w') as f:
+                    f.write('1')
+            except Exception as e:
+                print(f"[WARN] Could not reset progress file: {e}")
             break  # Exit the loop when no next button found
             
         # Save progress before moving to next page
@@ -612,7 +636,14 @@ def process_case(driver, claim_url, case_id, processed_claims):
                                 # Auto-reject case when credits are found
                                 try:
                                     print(f"[INFO] 🔴 Auto-rejecting case {case_id} due to found credits...")
-                                    reject_case_with_comment(driver, "credit found by credit checker tool")
+                                    credit_name = credit_results.get('credit_texts', [])
+                                    credit_name = credit_name[0] if credit_name else "the photographer"
+                                    rejection_comment = (
+                                        f"Credit Note: As {credit_name} is credited, for now we close this claim. "
+                                        f"If you are sure that the opponent does not have a license, please let us know - "
+                                        f"we're happy to re-open the claim! Thank you in advance."
+                                    )
+                                    reject_case_with_comment(driver, rejection_comment)
                                     print(f"[INFO] ✅ Case {case_id} rejected successfully")
                                 except Exception as reject_error:
                                     print(f"[WARN] Failed to reject case {case_id}: {reject_error}")
